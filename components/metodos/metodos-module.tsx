@@ -5,10 +5,12 @@ import { Filter, Plus, Search } from "lucide-react"
 import type { Metodo } from "@/types/metodo"
 import { MetodoService } from "@/services/metodo-service"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function MetodosModule() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const empresaId = searchParams.get("empresaId")
   const [filtros, setFiltros] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [metodos, setMetodos] = useState<Metodo[]>([])
@@ -22,7 +24,14 @@ export default function MetodosModule() {
     const fetchMetodos = async () => {
       try {
         setIsLoading(true)
-        const data = await MetodoService.getAll()
+        let data
+        if (empresaId) {
+          // Modificar la petición para incluir el empresaId
+          // Por ejemplo: fetchMetodos(Number(empresaId))
+          data = await MetodoService.getAll(Number(empresaId))
+        } else {
+          data = await MetodoService.getAll()
+        }
         setMetodos(data)
       } catch (error) {
         console.error("Error al cargar métodos:", error)
@@ -32,7 +41,7 @@ export default function MetodosModule() {
     }
 
     fetchMetodos()
-  }, [])
+  }, [empresaId])
 
   // Filtrar métodos cuando cambian los filtros o el término de búsqueda
   useEffect(() => {

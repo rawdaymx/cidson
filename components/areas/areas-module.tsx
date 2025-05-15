@@ -5,10 +5,12 @@ import { Filter, Plus, Search } from "lucide-react"
 import type { Area } from "@/types/area"
 import { AreaService } from "@/services/area-service"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function AreasModule() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const empresaId = searchParams.get("empresaId")
   const [filtros, setFiltros] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [areas, setAreas] = useState<Area[]>([])
@@ -22,7 +24,13 @@ export default function AreasModule() {
     const fetchAreas = async () => {
       try {
         setIsLoading(true)
-        const data = await AreaService.getAll()
+        let data
+        if (empresaId) {
+          // Assuming AreaService.getAll accepts an optional empresaId parameter
+          data = await AreaService.getAll(Number(empresaId))
+        } else {
+          data = await AreaService.getAll()
+        }
         setAreas(data)
       } catch (error) {
         console.error("Error al cargar áreas:", error)
@@ -32,7 +40,7 @@ export default function AreasModule() {
     }
 
     fetchAreas()
-  }, [])
+  }, [empresaId])
 
   // Filtrar áreas cuando cambian los filtros o el término de búsqueda
   useEffect(() => {

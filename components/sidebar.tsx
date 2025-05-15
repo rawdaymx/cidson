@@ -1,22 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  Home,
-  Building2,
-  Users,
-  Hand,
-  Server,
-  Bed,
-  Paintbrush,
-  List,
-  UserCircle,
-  Package,
-  ArrowRight,
-  ArrowLeft,
-  CheckSquare,
-  FileText,
-} from "lucide-react"
+import { Home, Building2, Users, List, UserCircle, Package, ArrowRight, ArrowLeft, CheckSquare } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -31,17 +16,11 @@ export default function Sidebar() {
     setExpanded(!expanded)
   }
 
-  // Mapeo de iconos a nombres para el sidebar expandido
+  // Modificamos el array menuItems para eliminar los enlaces a los catálogos
   const menuItems = [
     { name: "Dashboard", icon: Home, href: "/", isActive: pathname === "/" },
     { name: "Empresas", icon: Building2, href: "/empresas", isActive: pathname.startsWith("/empresas") },
     { name: "Usuarios", icon: Users, href: "/usuarios", isActive: pathname.startsWith("/usuarios") },
-    { name: "Actividades", icon: FileText, href: "/actividades", isActive: pathname.startsWith("/actividades") },
-    { name: "Motivos", icon: FileText, href: "/motivos", isActive: pathname.startsWith("/motivos") },
-    { name: "Métodos", icon: Hand, href: "/metodos", isActive: pathname.startsWith("/metodos") },
-    { name: "Áreas", icon: Server, href: "/areas", isActive: pathname.startsWith("/areas") },
-    { name: "Zona", icon: Bed, href: "/zona", isActive: pathname.startsWith("/zona") },
-    { name: "Materiales", icon: Paintbrush, href: "/materiales", isActive: pathname.startsWith("/materiales") },
     { name: "Checklist", icon: List, href: "/checklist", isActive: pathname.startsWith("/checklist") },
     { name: "Supervisor", icon: UserCircle, href: "/supervisor", isActive: pathname.startsWith("/supervisor") },
     {

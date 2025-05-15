@@ -1,166 +1,154 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { Filter, Plus, Search, Check } from "lucide-react";
-import EmpresaCard from "./empresa-card";
-import type { Empresa } from "@/types/empresa";
-import Link from "next/link";
-import {
-  EmpresaService,
-  type EmpresaSearchParams,
-} from "@/services/empresa-service";
+import { useState, useEffect } from "react"
+import { Filter, Plus, Search } from "lucide-react"
+import EmpresaCard from "./empresa-card"
+import type { Empresa } from "@/types/empresa"
+import Link from "next/link"
+import { EmpresaService, type EmpresaSearchParams } from "@/services/empresa-service"
 
-// Tipo para el filtro de estado
-type EstadoFilter = "todas" | "activas" | "inactivas";
+// Eliminar esta línea:
+// type EstadoFilter = "todas" | "activas" | "inactivas"
+
+// Reemplazar el estado estadoFilter con:
+// Eliminar esta línea:
+// const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todas")
+// Eliminar esta línea:
+// const [showEstadoDropdown, setShowEstadoDropdown] = useState(false)
 
 export default function EmpresasModule() {
-  const [filtros, setFiltros] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todas");
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [filteredEmpresas, setFilteredEmpresas] = useState<Empresa[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [filtros, setFiltros] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [empresas, setEmpresas] = useState<Empresa[]>([])
+  const [filteredEmpresas, setFilteredEmpresas] = useState<Empresa[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
     total: 0,
-  });
-  const [showEstadoDropdown, setShowEstadoDropdown] = useState(false);
+  })
 
   // Función para cargar las empresas desde la API
   const loadEmpresas = async (params?: EmpresaSearchParams) => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
 
     try {
       // Preparar los parámetros de búsqueda
-      const searchParams: EmpresaSearchParams = { ...params };
+      const searchParams: EmpresaSearchParams = { ...params }
 
-      // Agregar el filtro de estado si no es "todas"
-      if (estadoFilter !== "todas") {
-        searchParams.estado = estadoFilter === "activas" ? 1 : 0;
+      // Agregar el filtro de estado basado en los filtros seleccionados
+      if (filtros.includes("1")) {
+        searchParams.estado = 1 // Activas
+      } else if (filtros.includes("2")) {
+        searchParams.estado = 0 // Inactivas
       }
 
-      const { empresas, pagination } = await EmpresaService.getAll(
-        searchParams
-      );
-      setEmpresas(empresas);
-      setFilteredEmpresas(empresas);
+      const { empresas, pagination } = await EmpresaService.getAll(searchParams)
+      setEmpresas(empresas)
+      setFilteredEmpresas(empresas)
       setPagination({
         currentPage: pagination.current_page,
         totalPages: pagination.last_page,
         total: pagination.total,
-      });
+      })
     } catch (err) {
-      console.error("Error al cargar empresas:", err);
-      setError(
-        "No se pudieron cargar las empresas. Por favor, intente nuevamente."
-      );
+      console.error("Error al cargar empresas:", err)
+      setError("No se pudieron cargar las empresas. Por favor, intente nuevamente.")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  // Cargar empresas al montar el componente o cuando cambia el filtro de estado
+  // Cargar empresas al montar el componente o cuando cambian los filtros
   useEffect(() => {
     loadEmpresas({
       nombre: searchTerm,
-      page: 1, // Resetear a la primera página cuando cambia el filtro
-    });
-  }, [estadoFilter]);
+      page: 1, // Resetear a la primera página cuando cambian los filtros
+    })
+  }, [filtros])
 
   // Función para manejar la búsqueda
   const handleSearch = () => {
     loadEmpresas({
       nombre: searchTerm,
       page: 1, // Resetear a la primera página cuando se realiza una búsqueda
-    });
-  };
+    })
+  }
 
   // Función para manejar el cambio de página
   const handlePageChange = (page: number) => {
     loadEmpresas({
       nombre: searchTerm,
       page,
-    });
-  };
+    })
+  }
 
   // Función para manejar el cambio de estado de una empresa
   const handleStatusChange = (updatedEmpresa: Empresa) => {
     // Actualizar la lista de empresas con la empresa actualizada
-    const updatedEmpresas = empresas.map((emp) =>
-      emp.id === updatedEmpresa.id ? updatedEmpresa : emp
-    );
-    setEmpresas(updatedEmpresas);
+    const updatedEmpresas = empresas.map((emp) => (emp.id === updatedEmpresa.id ? updatedEmpresa : emp))
+    setEmpresas(updatedEmpresas)
 
     // Aplicar filtros si es necesario
-    if (estadoFilter !== "todas") {
-      const filteredList = updatedEmpresas.filter(
-        (emp) =>
-          (estadoFilter === "activas" && emp.estado === "Activo") ||
-          (estadoFilter === "inactivas" && emp.estado === "Inactivo")
-      );
-      setFilteredEmpresas(filteredList);
-    } else {
-      setFilteredEmpresas(updatedEmpresas);
-    }
-  };
+    let filteredList = [...updatedEmpresas]
 
-  // Función para cambiar el filtro de estado
-  const handleEstadoFilterChange = (estado: EstadoFilter) => {
-    setEstadoFilter(estado);
-    setShowEstadoDropdown(false);
-  };
+    // Aplicar filtro de búsqueda
+    if (searchTerm) {
+      filteredList = filteredList.filter(
+        (emp) =>
+          emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          emp.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    // Aplicar filtros de estado
+    if (filtros.includes("1")) {
+      filteredList = filteredList.filter((emp) => emp.estado === "Activo")
+    }
+
+    if (filtros.includes("2")) {
+      filteredList = filteredList.filter((emp) => emp.estado === "Inactivo")
+    }
+
+    setFilteredEmpresas(filteredList)
+  }
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro));
+      setFiltros(filtros.filter((f) => f !== filtro))
     } else {
-      setFiltros([...filtros, filtro]);
+      // Si se selecciona "Activas", deseleccionar "Inactivas" y viceversa
+      if (filtro === "1" && filtros.includes("2")) {
+        setFiltros(["1"])
+      } else if (filtro === "2" && filtros.includes("1")) {
+        setFiltros(["2"])
+      } else {
+        setFiltros([...filtros, filtro])
+      }
     }
-  };
+  }
 
   const limpiarFiltros = () => {
-    setFiltros([]);
-    setSearchTerm("");
-    setEstadoFilter("todas");
-    loadEmpresas(); // Recargar sin filtros
-  };
-
-  // Obtener el texto del filtro de estado para mostrar en el botón
-  const getEstadoFilterText = () => {
-    switch (estadoFilter) {
-      case "activas":
-        return "Activas";
-      case "inactivas":
-        return "Inactivas";
-      default:
-        return "Todas";
-    }
-  };
+    setFiltros([])
+    setSearchTerm("")
+    loadEmpresas() // Recargar sin filtros
+  }
 
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
       <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
-          Empresas
-        </h1>
-        <p className="text-sm sm:text-base text-gray-600">
-          Crea y selecciona la empresa para trabajar con CIDSON
-        </p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Empresas</h1>
+        <p className="text-sm sm:text-base text-gray-600">Crea y selecciona la empresa para trabajar con CIDSON</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
-              {pagination.total}
-            </span>
-            <span className="text-sm sm:text-base text-gray-600 font-medium">
-              REGISTROS
-            </span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{pagination.total}</span>
+            <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
           </div>
 
           {/* Barra de búsqueda, filtros y botón nueva empresa */}
@@ -183,73 +171,13 @@ export default function EmpresasModule() {
               </div>
 
               <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
-                {/* Filtro de Estado */}
-                <div className="relative">
-                  <button
-                    className={`px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
-                      estadoFilter !== "todas" ? "bg-green-50" : ""
-                    } flex items-center`}
-                    onClick={() => setShowEstadoDropdown(!showEstadoDropdown)}
-                  >
-                    Estado: {getEstadoFilterText()}
-                    <svg
-                      className="w-4 h-4 ml-1"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </button>
-                  {showEstadoDropdown && (
-                    <div className="absolute z-10 mt-1 w-48 bg-white rounded-md shadow-lg">
-                      <ul className="py-1">
-                        <li
-                          className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer flex items-center"
-                          onClick={() => handleEstadoFilterChange("todas")}
-                        >
-                          Todas
-                          {estadoFilter === "todas" && (
-                            <Check className="ml-auto h-4 w-4 text-[#00b276]" />
-                          )}
-                        </li>
-                        <li
-                          className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer flex items-center"
-                          onClick={() => handleEstadoFilterChange("activas")}
-                        >
-                          Activas
-                          {estadoFilter === "activas" && (
-                            <Check className="ml-auto h-4 w-4 text-[#00b276]" />
-                          )}
-                        </li>
-                        <li
-                          className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer flex items-center"
-                          onClick={() => handleEstadoFilterChange("inactivas")}
-                        >
-                          Inactivas
-                          {estadoFilter === "inactivas" && (
-                            <Check className="ml-auto h-4 w-4 text-[#00b276]" />
-                          )}
-                        </li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-
                 <button
                   className={`px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
                     filtros.includes("1") ? "bg-green-50" : ""
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Filtro 1{" "}
-                  {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -258,18 +186,13 @@ export default function EmpresasModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Filtro 2{" "}
-                  {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
                   className="px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center"
                   onClick={limpiarFiltros}
-                  disabled={
-                    filtros.length === 0 &&
-                    !searchTerm &&
-                    estadoFilter === "todas"
-                  }
+                  disabled={filtros.length === 0 && !searchTerm}
                 >
                   <Filter className="mr-1 h-4 w-4" /> Limpiar
                 </button>
@@ -278,98 +201,31 @@ export default function EmpresasModule() {
 
             {/* Filtros solo para móvil */}
             <div className="flex sm:hidden flex-wrap items-center gap-2 w-full">
-              {/* Filtro de Estado para móvil */}
-              <div className="relative w-full">
-                <button
-                  className={`w-full px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
-                    estadoFilter !== "todas" ? "bg-green-50" : ""
-                  } flex items-center justify-between`}
-                  onClick={() => setShowEstadoDropdown(!showEstadoDropdown)}
-                >
-                  <span>Estado: {getEstadoFilterText()}</span>
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-                {showEstadoDropdown && (
-                  <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg">
-                    <ul className="py-1">
-                      <li
-                        className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer flex items-center"
-                        onClick={() => handleEstadoFilterChange("todas")}
-                      >
-                        Todas
-                        {estadoFilter === "todas" && (
-                          <Check className="ml-auto h-4 w-4 text-[#00b276]" />
-                        )}
-                      </li>
-                      <li
-                        className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer flex items-center"
-                        onClick={() => handleEstadoFilterChange("activas")}
-                      >
-                        Activas
-                        {estadoFilter === "activas" && (
-                          <Check className="ml-auto h-4 w-4 text-[#00b276]" />
-                        )}
-                      </li>
-                      <li
-                        className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer flex items-center"
-                        onClick={() => handleEstadoFilterChange("inactivas")}
-                      >
-                        Inactivas
-                        {estadoFilter === "inactivas" && (
-                          <Check className="ml-auto h-4 w-4 text-[#00b276]" />
-                        )}
-                      </li>
-                    </ul>
-                  </div>
-                )}
-              </div>
+              <button
+                className={`flex-1 px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
+                  filtros.includes("1") ? "bg-green-50" : ""
+                }`}
+                onClick={() => toggleFiltro("1")}
+              >
+                Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
+              </button>
 
-              <div className="flex w-full gap-2">
-                <button
-                  className={`flex-1 px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
-                    filtros.includes("1") ? "bg-green-50" : ""
-                  }`}
-                  onClick={() => toggleFiltro("1")}
-                >
-                  Filtro 1{" "}
-                  {filtros.includes("1") && <span className="ml-1">✓</span>}
-                </button>
+              <button
+                className={`flex-1 px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
+                  filtros.includes("2") ? "bg-green-50" : ""
+                }`}
+                onClick={() => toggleFiltro("2")}
+              >
+                Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
+              </button>
 
-                <button
-                  className={`flex-1 px-3 py-2 text-sm rounded-md border border-[#00b276] text-[#00b276] ${
-                    filtros.includes("2") ? "bg-green-50" : ""
-                  }`}
-                  onClick={() => toggleFiltro("2")}
-                >
-                  Filtro 2{" "}
-                  {filtros.includes("2") && <span className="ml-1">✓</span>}
-                </button>
-
-                <button
-                  className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center justify-center"
-                  onClick={limpiarFiltros}
-                  disabled={
-                    filtros.length === 0 &&
-                    !searchTerm &&
-                    estadoFilter === "todas"
-                  }
-                >
-                  <Filter className="mr-1 h-4 w-4" /> Limpiar
-                </button>
-              </div>
+              <button
+                className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center justify-center"
+                onClick={limpiarFiltros}
+                disabled={filtros.length === 0 && !searchTerm}
+              >
+                <Filter className="mr-1 h-4 w-4" /> Limpiar
+              </button>
             </div>
 
             {/* Botón de Nueva Empresa */}
@@ -390,10 +246,7 @@ export default function EmpresasModule() {
       ) : error ? (
         <div className="text-center py-12">
           <p className="text-red-500 text-lg">{error}</p>
-          <button
-            className="mt-4 px-4 py-2 rounded-md border border-gray-300"
-            onClick={() => loadEmpresas()}
-          >
+          <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={() => loadEmpresas()}>
             Reintentar
           </button>
         </div>
@@ -401,22 +254,17 @@ export default function EmpresasModule() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
             {filteredEmpresas.map((empresa) => (
-              <EmpresaCard
-                key={empresa.id}
-                empresa={empresa}
-                onStatusChange={handleStatusChange}
-              />
+              <EmpresaCard key={empresa.id} empresa={empresa} onStatusChange={handleStatusChange} />
             ))}
           </div>
 
           {filteredEmpresas.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">
-                No se encontraron empresas con los filtros aplicados
-              </p>
+              <p className="text-gray-500 text-lg">No se encontraron empresas con los filtros aplicados</p>
               <button
                 className="mt-4 px-4 py-2 rounded-md border border-gray-300"
                 onClick={limpiarFiltros}
+                disabled={filtros.length === 0 && !searchTerm}
               >
                 Limpiar filtros
               </button>
@@ -445,21 +293,17 @@ export default function EmpresasModule() {
             </button>
 
             {/* Generar botones de página */}
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(
-              (page) => (
-                <button
-                  key={page}
-                  className={`px-2 sm:px-3 py-1 ${
-                    page === pagination.currentPage
-                      ? "bg-[#303e65] text-white"
-                      : "text-gray-500"
-                  } rounded-md text-xs sm:text-sm`}
-                  onClick={() => handlePageChange(page)}
-                >
-                  {page}
-                </button>
-              )
-            )}
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                className={`px-2 sm:px-3 py-1 ${
+                  page === pagination.currentPage ? "bg-[#303e65] text-white" : "text-gray-500"
+                } rounded-md text-xs sm:text-sm`}
+                onClick={() => handlePageChange(page)}
+              >
+                {page}
+              </button>
+            ))}
 
             <button
               className="px-2 sm:px-3 py-1 text-gray-500 text-xs sm:text-sm"
@@ -479,5 +323,5 @@ export default function EmpresasModule() {
         </div>
       )}
     </div>
-  );
+  )
 }

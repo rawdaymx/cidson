@@ -5,10 +5,12 @@ import { Filter, Plus, Search } from "lucide-react"
 import type { Actividad } from "@/types/actividad"
 import { ActividadService } from "@/services/actividad-service"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function ActividadesModule() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const empresaId = searchParams.get("empresaId")
   const [filtros, setFiltros] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [actividades, setActividades] = useState<Actividad[]>([])
@@ -32,7 +34,7 @@ export default function ActividadesModule() {
     }
 
     fetchActividades()
-  }, [])
+  }, [empresaId])
 
   // Filtrar actividades cuando cambian los filtros o el término de búsqueda
   useEffect(() => {

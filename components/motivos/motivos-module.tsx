@@ -5,10 +5,12 @@ import { Filter, Plus, Search } from "lucide-react"
 import type { Motivo } from "@/types/motivo"
 import { MotivoService } from "@/services/motivo-service"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function MotivosModule() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const empresaId = searchParams.get("empresaId")
   const [filtros, setFiltros] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [motivos, setMotivos] = useState<Motivo[]>([])
@@ -22,7 +24,12 @@ export default function MotivosModule() {
     const fetchMotivos = async () => {
       try {
         setIsLoading(true)
-        const data = await MotivoService.getAll()
+        let data
+        if (empresaId) {
+          data = await MotivoService.getAll(Number(empresaId))
+        } else {
+          data = await MotivoService.getAll()
+        }
         setMotivos(data)
       } catch (error) {
         console.error("Error al cargar motivos:", error)
@@ -32,7 +39,7 @@ export default function MotivosModule() {
     }
 
     fetchMotivos()
-  }, [])
+  }, [empresaId])
 
   // Filtrar motivos cuando cambian los filtros o el término de búsqueda
   useEffect(() => {
