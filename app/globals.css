@@ -1,0 +1,193 @@
+/* Directivas de Tailwind en el orden correcto */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variables CSS básicas */
+:root {
+  --cidson-blue: 222 47% 31%;
+  --cidson-blue-light: 222 47% 41%;
+  --cidson-blue-dark: 222 47% 21%;
+  --cidson-amber: 38 92% 50%;
+  --cidson-green: 142 76% 36%;
+  --cidson-navy: 225 32% 29%;
+}
+
+/* Estilos base simplificados */
+body {
+  background-color: #f8f9fc;
+  color: #1f2937;
+}
+
+/* Animaciones básicas */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Estilos para mejorar la responsividad del sidebar */
+@media (max-height: 768px) {
+  .sidebar-nav {
+    gap: 0.5rem;
+  }
+
+  .sidebar-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+}
+
+/* Asegurar que los iconos estén bien centrados */
+.sidebar-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Prevenir scroll horizontal en el sidebar */
+aside {
+  min-height: 100vh;
+  max-height: 100vh;
+  transition: width 0.3s ease-in-out;
+}
+
+aside.collapsed {
+  max-width: 80px;
+  width: 80px;
+}
+
+aside > * {
+  max-width: 100%;
+}
+
+/* Asegurar que los elementos del sidebar no causen desbordamiento */
+.sidebar-logo,
+.sidebar-nav,
+.sidebar-separator {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Scroll personalizado para el sidebar */
+aside::-webkit-scrollbar {
+  width: 4px;
+}
+
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+aside::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+}
+
+aside::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Estilos específicos para el scroll en la navegación */
+aside nav::-webkit-scrollbar {
+  width: 3px;
+}
+
+aside nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+aside nav::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+}
+
+aside nav::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Asegurar que la navegación tenga un espacio mínimo para el scroll */
+aside nav {
+  min-height: 0;
+}
+
+/* Transición suave para el sidebar */
+.sidebar-transition {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Ajustar el espaciado en pantallas pequeñas */
+@media (max-height: 600px) {
+  aside nav {
+    gap: 0.5rem;
+  }
+
+  aside .flex-shrink-0 {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* Estilos para los inputs de fecha */
+input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}
+
+/* Estilos para los selects */
+select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+/* Estilos para el fondo de la página */
+.bg-cidson-light {
+  background-color: #f4f6fb;
+}
+
+/* Estilos para los botones amarillos */
+.btn-cidson-yellow {
+  background-color: #f5d433;
+  color: #303e65;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-cidson-yellow:hover {
+  background-color: #f0ca20;
+}
