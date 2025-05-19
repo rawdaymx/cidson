@@ -1,108 +1,90 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Save } from "lucide-react"
-import Link from "next/link"
 import { ActividadService } from "@/services/actividad-service"
-import type { Actividad } from "@/types/actividad"
 
 export default function NuevaActividadPage() {
   const router = useRouter()
-  const [formData, setFormData] = useState({
-    nombre: "",
-    estado: "Activa" as "Activa" | "Inactiva",
-  })
-  const [errors, setErrors] = useState({
-    nombre: "",
-    estado: "",
-  })
+  const searchParams = useSearchParams()
+  const empresaId = searchParams.get("empresaId")
+  const configuracionIdParam = searchParams.get("configuracionId")
+  const returnToParam = searchParams.get("returnTo")
+
+  const [nombre, setNombre] = useState("")
+  const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [configuracionId, setConfiguracionId] = useState<number | null>(
+    configuracionIdParam ? Number(configuracionIdParam) : null,
+  )
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
-
-    // Limpiar error al cambiar el valor
-    if (errors[name as keyof typeof errors]) {
-      setErrors({
-        ...errors,
-        [name]: "",
-      })
+  useEffect(() => {
+    if (!configuracionIdParam && !empresaId) {
+      setError("No se proporcionó ID de empresa o configuración")
     }
-  }
-
-  const validateForm = (): boolean => {
-    let isValid = true
-    const newErrors = {
-      nombre: "",
-      estado: "",
-    }
-
-    if (!formData.nombre.trim()) {
-      newErrors.nombre = "El nombre de la actividad es requerido"
-      isValid = false
-    }
-
-    if (!formData.estado) {
-      newErrors.estado = "El estado es requerido"
-      isValid = false
-    }
-
-    setErrors(newErrors)
-    return isValid
-  }
+  }, [configuracionIdParam, empresaId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
+    if (!nombre.trim()) {
+      setError("El nombre de la actividad es requerido")
       return
     }
 
+    if (!configuracionId) {
+      setError("No se proporcionó ID de configuración")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError("")
+
     try {
-      setIsSubmitting(true)
+      // Usar el nuevo método del servicio para crear la actividad
+      const actividad = await ActividadService.create(configuracionId, nombre.trim())
 
-      // Obtener la fecha actual en formato dd/mm/aaaa
-      const today = new Date()
-      const day = String(today.getDate()).padStart(2, "0")
-      const month = String(today.getMonth() + 1).padStart(2, "0")
-      const year = today.getFullYear()
-      const fechaCreacion = `${day}/${month}/${year}`
+      if (actividad) {
+        console.log("Actividad creada exitosamente:", actividad)
 
-      const nuevaActividad: Omit<Actividad, "id"> = {
-        nombre: formData.nombre.trim(),
-        estado: formData.estado,
-        fechaCreacion,
+        // Redirigir a la página de actividades
+        const params = new URLSearchParams()
+        if (empresaId) params.append("empresaId", empresaId)
+        if (configuracionId) params.append("configuracionId", configuracionId.toString())
+        if (returnToParam) params.append("returnTo", returnToParam)
+
+        router.push(`/actividades?${params.toString()}`)
+      } else {
+        setError("Error al crear la actividad")
       }
-
-      await ActividadService.create(nuevaActividad)
-
-      // Redirigir a la lista de actividades
-      router.push("/actividades")
     } catch (error) {
-      console.error("Error al guardar la actividad:", error)
-      setErrors({
-        ...errors,
-        nombre: "Ocurrió un error al guardar la actividad. Por favor, intente nuevamente.",
-      })
+      console.error("Error al crear actividad:", error)
+      setError("Ocurrió un error al crear la actividad. Por favor, intente nuevamente.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  // Modificar la función handleVolver para que redirija a /actividades
+  const handleVolver = () => {
+    // Construir la URL para volver a la lista de actividades con los parámetros relevantes
+    const params = new URLSearchParams()
+    if (empresaId) params.append("empresaId", empresaId)
+    if (configuracionId) params.append("configuracionId", configuracionId?.toString() || "")
+    if (returnToParam) params.append("returnTo", returnToParam)
+
+    router.push(`/actividades?${params.toString()}`)
+  }
+
   return (
     <div className="bg-[#f4f6fb] min-h-screen">
       <div className="pl-8 pr-6 py-6 max-w-[1200px]">
-        <Link href="/actividades" className="inline-flex items-center text-[#303e65] mb-6">
+        <button onClick={handleVolver} className="inline-flex items-center text-[#303e65] mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Regresar
-        </Link>
+        </button>
 
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Nuevo registro</h1>
         <p className="text-gray-600 mb-8">Crea y registra nuevas actividades.</p>
@@ -116,47 +98,16 @@ export default function NuevaActividadPage() {
                   id="nombre"
                   name="nombre"
                   placeholder="Nombre De La Actividad"
-                  value={formData.nombre}
-                  onChange={handleChange}
+                  value={nombre}
+                  onChange={(e) => {
+                    setNombre(e.target.value)
+                    if (e.target.value.trim()) setError("")
+                  }}
                   className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
-                    errors.nombre ? "ring-2 ring-red-500" : ""
+                    error ? "ring-2 ring-red-500" : ""
                   }`}
                 />
-                {errors.nombre && <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>}
-              </div>
-
-              <div className="relative">
-                <select
-                  id="estado"
-                  name="estado"
-                  value={formData.estado}
-                  onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 appearance-none focus:ring-2 focus:ring-[#303e65] ${
-                    errors.estado ? "ring-2 ring-red-500" : ""
-                  }`}
-                >
-                  <option value="Estado" disabled>
-                    Estado
-                  </option>
-                  <option value="Activa">Activa</option>
-                  <option value="Inactiva">Inactiva</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                {errors.estado && <p className="mt-1 text-sm text-red-500">{errors.estado}</p>}
+                {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
               </div>
             </div>
 

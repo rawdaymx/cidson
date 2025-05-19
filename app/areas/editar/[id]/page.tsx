@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, Save } from "lucide-react"
+import { ArrowLeft, Save, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { AreaService } from "@/services/area-service"
 
@@ -15,11 +15,9 @@ export default function EditarAreaPage() {
 
   const [formData, setFormData] = useState({
     nombre: "",
-    estado: "Activa" as "Activa" | "Inactiva",
   })
   const [errors, setErrors] = useState({
     nombre: "",
-    estado: "",
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -33,13 +31,19 @@ export default function EditarAreaPage() {
         if (area) {
           setFormData({
             nombre: area.nombre,
-            estado: area.estado,
           })
         } else {
+          // Si no se encuentra el área, mostrar un mensaje y redirigir
+          console.error("Área no encontrada")
           router.push("/areas")
         }
       } catch (error) {
         console.error("Error al cargar el área:", error)
+        // Mostrar un mensaje de error al usuario
+        setErrors({
+          ...errors,
+          nombre: "Error al cargar la información del área. Por favor, intente nuevamente.",
+        })
       } finally {
         setIsLoading(false)
       }
@@ -48,9 +52,9 @@ export default function EditarAreaPage() {
     if (id) {
       fetchArea()
     }
-  }, [id, router])
+  }, [id, router, errors])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData({
       ...formData,
@@ -70,16 +74,10 @@ export default function EditarAreaPage() {
     let isValid = true
     const newErrors = {
       nombre: "",
-      estado: "",
     }
 
     if (!formData.nombre.trim()) {
       newErrors.nombre = "El nombre del área es requerido"
-      isValid = false
-    }
-
-    if (!formData.estado) {
-      newErrors.estado = "El estado es requerido"
       isValid = false
     }
 
@@ -97,24 +95,35 @@ export default function EditarAreaPage() {
     try {
       setIsSubmitting(true)
 
-      const area = await AreaService.getById(id)
-
-      if (area) {
-        await AreaService.update(id, {
-          ...area,
-          nombre: formData.nombre.trim(),
-          estado: formData.estado,
-        })
-      }
+      // Actualizar el área enviando solo el nombre
+      await AreaService.update(id, {
+        nombre: formData.nombre.trim(),
+      })
 
       // Redirigir a la lista de áreas
-      router.push("/areas")
-    } catch (error) {
+      const searchParams = new URLSearchParams(window.location.search)
+      const empresaId = searchParams.get("empresaId")
+      router.push(empresaId ? `/areas?empresaId=${empresaId}` : "/areas")
+    } catch (error: any) {
       console.error("Error al actualizar el área:", error)
-      setErrors({
-        ...errors,
-        nombre: "Ocurrió un error al actualizar el área. Por favor, intente nuevamente.",
-      })
+
+      // Verificar si el error es por nombre duplicado
+      if (
+        error.message &&
+        (error.message.includes("nombre has already been taken") ||
+          error.message.includes("ya existe") ||
+          error.message.includes("ya ha sido tomado"))
+      ) {
+        setErrors({
+          ...errors,
+          nombre: "El nombre del área ya existe. Por favor, utilice otro nombre.",
+        })
+      } else {
+        setErrors({
+          ...errors,
+          nombre: error.message || "Ocurrió un error al actualizar el área. Por favor, intente nuevamente.",
+        })
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -144,55 +153,24 @@ export default function EditarAreaPage() {
 
         <div className="bg-white rounded-xl p-8 shadow-sm max-w-[800px] mx-auto">
           <form onSubmit={handleSubmit}>
-            <div className="space-y-6">
-              <div>
-                <input
-                  type="text"
-                  id="nombre"
-                  name="nombre"
-                  placeholder="Nombre Del Área"
-                  value={formData.nombre}
-                  onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
-                    errors.nombre ? "ring-2 ring-red-500" : ""
-                  }`}
-                />
-                {errors.nombre && <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>}
-              </div>
-
-              <div className="relative">
-                <select
-                  id="estado"
-                  name="estado"
-                  value={formData.estado}
-                  onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 appearance-none focus:ring-2 focus:ring-[#303e65] ${
-                    errors.estado ? "ring-2 ring-red-500" : ""
-                  }`}
-                >
-                  <option value="Estado" disabled>
-                    Estado
-                  </option>
-                  <option value="Activa">Activa</option>
-                  <option value="Inactiva">Inactiva</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+            <div>
+              <input
+                type="text"
+                id="nombre"
+                name="nombre"
+                placeholder="Nombre Del Área"
+                value={formData.nombre}
+                onChange={handleChange}
+                className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
+                  errors.nombre ? "ring-2 ring-red-500" : ""
+                }`}
+              />
+              {errors.nombre && (
+                <div className="mt-2 flex items-start text-sm text-red-500">
+                  <AlertCircle className="h-4 w-4 mr-1 mt-0.5 flex-shrink-0" />
+                  <p>{errors.nombre}</p>
                 </div>
-                {errors.estado && <p className="mt-1 text-sm text-red-500">{errors.estado}</p>}
-              </div>
+              )}
             </div>
 
             <div className="flex justify-end mt-8">

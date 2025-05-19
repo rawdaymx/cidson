@@ -145,3 +145,14 @@ export class AuthService {
     // La redirección se maneja en el componente que llama a este método
   }
 }
+
+/**
+ * Obtiene el token de autenticación almacenado
+ * @returns El token de autenticación o null si no existe
+ */
+export function getAuthToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("auth_token")
+  }
+  return null
+}

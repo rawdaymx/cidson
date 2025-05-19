@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { ActividadService } from "@/services/actividad-service"
@@ -11,35 +11,75 @@ import { ActividadService } from "@/services/actividad-service"
 export default function EditarActividadPage() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const id = Number(params.id)
 
+  // Obtener los parámetros de la URL actual para mantenerlos en la redirección
+  const empresaId = searchParams.get("empresaId")
+  const configuracionId = searchParams.get("configuracionId")
+  const returnTo = searchParams.get("returnTo")
+
+  // Modificar el estado inicial del formulario para eliminar el estado
   const [formData, setFormData] = useState({
     nombre: "",
-    estado: "Activa" as "Activa" | "Inactiva",
   })
+
+  // Modificar el estado de errores para eliminar el estado
   const [errors, setErrors] = useState({
     nombre: "",
-    estado: "",
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [actividad, setActividad] = useState<any>(null)
 
+  // Añadir un estado para mensajes de notificación
+  const [notification, setNotification] = useState<{
+    type: "success" | "error"
+    message: string
+  } | null>(null)
+
+  // Modificar la función fetchActividad para pasar el configuracionId
   useEffect(() => {
     const fetchActividad = async () => {
       try {
         setIsLoading(true)
-        const actividad = await ActividadService.getById(id)
+        console.log(`Obteniendo actividad con ID: ${id}`)
 
-        if (actividad) {
+        // Obtener el configuracionId de los parámetros de la URL
+        const configId = configuracionId ? Number.parseInt(configuracionId) : undefined
+        console.log(`ConfiguracionId de URL: ${configId}`)
+
+        // Intentar obtener la actividad pasando el configuracionId
+        const actividadData = await ActividadService.getById(id, configId)
+
+        if (actividadData) {
+          console.log(`Actividad encontrada:`, actividadData)
+          setActividad(actividadData)
           setFormData({
-            nombre: actividad.nombre,
-            estado: actividad.estado,
+            nombre: actividadData.nombre,
           })
         } else {
-          router.push("/actividades")
+          console.error(`No se pudo encontrar la actividad con ID ${id}`)
+          // Mostrar un mensaje al usuario
+          setErrors({
+            nombre: "No se pudo encontrar la actividad. Regresando a la lista...",
+          })
+
+          // Esperar un momento antes de redirigir para que el usuario vea el mensaje
+          setTimeout(() => {
+            redirectToActividades()
+          }, 2000)
         }
       } catch (error) {
         console.error("Error al cargar la actividad:", error)
+        setErrors({
+          nombre: "Ocurrió un error al cargar la actividad. Regresando a la lista...",
+        })
+
+        // Esperar un momento antes de redirigir
+        setTimeout(() => {
+          redirectToActividades()
+        }, 2000)
       } finally {
         setIsLoading(false)
       }
@@ -48,7 +88,36 @@ export default function EditarActividadPage() {
     if (id) {
       fetchActividad()
     }
-  }, [id, router])
+  }, [id, configuracionId])
+
+  // Función para construir la URL de redirección con los parámetros necesarios
+  const redirectToActividades = () => {
+    // Construir los parámetros de consulta
+    const queryParams = new URLSearchParams()
+
+    // Agregar los parámetros si existen
+    if (empresaId) queryParams.append("empresaId", empresaId)
+
+    // Si tenemos el configuracionId del parámetro, usarlo
+    if (configuracionId) {
+      queryParams.append("configuracionId", configuracionId)
+    }
+    // Si no, pero tenemos la actividad cargada, usar su configuracion_id
+    else if (actividad && actividad.configuracion_id) {
+      queryParams.append("configuracionId", actividad.configuracion_id.toString())
+    }
+
+    // Si hay un returnTo, usarlo como destino de redirección
+    if (returnTo) {
+      router.push(returnTo)
+    } else {
+      // Si no hay returnTo, ir a la página de actividades con los parámetros
+      const queryString = queryParams.toString()
+      const redirectUrl = `/actividades${queryString ? `?${queryString}` : ""}`
+      console.log(`Redirigiendo a: ${redirectUrl}`)
+      router.push(redirectUrl)
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -66,11 +135,11 @@ export default function EditarActividadPage() {
     }
   }
 
+  // Modificar la función validateForm para que solo valide el nombre
   const validateForm = (): boolean => {
     let isValid = true
     const newErrors = {
       nombre: "",
-      estado: "",
     }
 
     if (!formData.nombre.trim()) {
@@ -78,15 +147,11 @@ export default function EditarActividadPage() {
       isValid = false
     }
 
-    if (!formData.estado) {
-      newErrors.estado = "El estado es requerido"
-      isValid = false
-    }
-
     setErrors(newErrors)
     return isValid
   }
 
+  // Modificar la función handleSubmit para redirigir inmediatamente sin mostrar mensaje de éxito
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -96,28 +161,42 @@ export default function EditarActividadPage() {
 
     try {
       setIsSubmitting(true)
+      console.log(`Actualizando actividad con ID ${id}, nombre: ${formData.nombre}`)
 
-      const actividad = await ActividadService.getById(id)
+      // Enviar solo el nombre
+      const updatedActividad = await ActividadService.update(id, {
+        nombre: formData.nombre.trim(),
+      })
 
-      if (actividad) {
-        await ActividadService.update(id, {
-          ...actividad,
-          nombre: formData.nombre.trim(),
-          estado: formData.estado,
-        })
+      if (updatedActividad) {
+        console.log("Actividad actualizada exitosamente:", updatedActividad)
+
+        // Redirigir inmediatamente sin mostrar mensaje
+        redirectToActividades()
+      } else {
+        throw new Error("No se pudo actualizar la actividad")
       }
-
-      // Redirigir a la lista de actividades
-      router.push("/actividades")
     } catch (error) {
       console.error("Error al actualizar la actividad:", error)
       setErrors({
-        ...errors,
         nombre: "Ocurrió un error al actualizar la actividad. Por favor, intente nuevamente.",
       })
-    } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Función para construir la URL para el enlace "Regresar"
+  const getBackUrl = () => {
+    // Si hay un returnTo, usarlo
+    if (returnTo) return returnTo
+
+    // Si no, construir la URL de actividades con los parámetros
+    const queryParams = new URLSearchParams()
+    if (empresaId) queryParams.append("empresaId", empresaId)
+    if (configuracionId) queryParams.append("configuracionId", configuracionId)
+
+    const queryString = queryParams.toString()
+    return `/actividades${queryString ? `?${queryString}` : ""}`
   }
 
   if (isLoading) {
@@ -134,7 +213,7 @@ export default function EditarActividadPage() {
   return (
     <div className="bg-[#f4f6fb] min-h-screen">
       <div className="pl-8 pr-6 py-6 max-w-[1200px]">
-        <Link href="/actividades" className="inline-flex items-center text-[#303e65] mb-6">
+        <Link href={getBackUrl()} className="inline-flex items-center text-[#303e65] mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Regresar
         </Link>
@@ -158,40 +237,6 @@ export default function EditarActividadPage() {
                   }`}
                 />
                 {errors.nombre && <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>}
-              </div>
-
-              <div className="relative">
-                <select
-                  id="estado"
-                  name="estado"
-                  value={formData.estado}
-                  onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 appearance-none focus:ring-2 focus:ring-[#303e65] ${
-                    errors.estado ? "ring-2 ring-red-500" : ""
-                  }`}
-                >
-                  <option value="Estado" disabled>
-                    Estado
-                  </option>
-                  <option value="Activa">Activa</option>
-                  <option value="Inactiva">Inactiva</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                {errors.estado && <p className="mt-1 text-sm text-red-500">{errors.estado}</p>}
               </div>
             </div>
 

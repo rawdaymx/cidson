@@ -1,117 +1,109 @@
-import type { Metodo } from "@/types/metodo"
+import type { Metodo, MetodoResponse } from "@/types/metodo"
+import { httpClient } from "@/services/http-client"
 
 export class MetodoService {
-  private static metodos: Metodo[] = [
-    {
-      id: 1,
-      descripcion: "Limpieza en seco",
-      estado: "Activa",
-      fechaCreacion: "01/01/2023",
-    },
-    {
-      id: 2,
-      descripcion: "Limpieza con vapor",
-      estado: "Activa",
-      fechaCreacion: "15/01/2023",
-    },
-    {
-      id: 3,
-      descripcion: "Limpieza con productos químicos",
-      estado: "Activa",
-      fechaCreacion: "20/01/2023",
-    },
-    {
-      id: 4,
-      descripcion: "Limpieza con ultrasonido",
-      estado: "Activa",
-      fechaCreacion: "25/01/2023",
-    },
-    {
-      id: 5,
-      descripcion: "Limpieza con presión de agua",
-      estado: "Activa",
-      fechaCreacion: "01/02/2023",
-    },
-    {
-      id: 6,
-      descripcion: "Limpieza con espuma",
-      estado: "Inactiva",
-      fechaCreacion: "05/02/2023",
-    },
-    {
-      id: 7,
-      descripcion: "Limpieza con microondas",
-      estado: "Inactiva",
-      fechaCreacion: "10/02/2023",
-    },
-    {
-      id: 8,
-      descripcion: "Limpieza con ozono",
-      estado: "Inactiva",
-      fechaCreacion: "15/02/2023",
-    },
-    {
-      id: 9,
-      descripcion: "Limpieza con láser",
-      estado: "Inactiva",
-      fechaCreacion: "20/02/2023",
-    },
-    {
-      id: 10,
-      descripcion: "Limpieza criogénica",
-      estado: "Inactiva",
-      fechaCreacion: "25/02/2023",
-    },
-  ]
+  /**
+   * Obtiene todos los métodos de una empresa con paginación
+   * @param empresaId ID de la empresa
+   * @param page Número de página
+   * @param nombre Término de búsqueda por nombre (opcional)
+   * @returns Respuesta con datos y metadatos de paginación
+   */
+  static async getAll(empresaId: number, page = 1, nombre?: string): Promise<MetodoResponse> {
+    try {
+      if (!empresaId) {
+        // Si no hay empresaId, devolvemos un objeto vacío con la estructura esperada
+        return {
+          data: [],
+          links: { first: "", last: "", prev: null, next: null },
+          meta: {
+            current_page: 1,
+            from: 0,
+            last_page: 1,
+            links: [],
+            path: "",
+            per_page: 10,
+            to: 0,
+            total: 0,
+          },
+        }
+      }
 
-  static getAll(): Promise<Metodo[]> {
-    return Promise.resolve([...this.metodos])
-  }
+      // Construir URL con parámetros - Corregida la ruta según la API real
+      let url = `/api/metodos/${empresaId}?page=${page}`
+      if (nombre) {
+        url += `&nombre=${encodeURIComponent(nombre)}`
+      }
 
-  static getById(id: number): Promise<Metodo | undefined> {
-    const metodo = this.metodos.find((m) => m.id === id)
-    return Promise.resolve(metodo)
-  }
+      console.log(`Obteniendo métodos: ${url}`)
+      const response = await httpClient.get<MetodoResponse>(url)
 
-  static create(metodo: Omit<Metodo, "id">): Promise<Metodo> {
-    const newId = Math.max(...this.metodos.map((m) => m.id)) + 1
-    const newMetodo = { ...metodo, id: newId }
-    this.metodos.push(newMetodo)
-    return Promise.resolve(newMetodo)
-  }
+      // Asegurarnos de que la respuesta tenga la estructura esperada
+      if (!response.data) {
+        console.warn("La respuesta no contiene datos", response)
+        response.data = []
+      }
 
-  static update(id: number, metodo: Partial<Metodo>): Promise<Metodo | undefined> {
-    const index = this.metodos.findIndex((m) => m.id === id)
-    if (index === -1) {
-      return Promise.resolve(undefined)
+      return response
+    } catch (error) {
+      console.error("Error al obtener métodos:", error)
+      throw error
     }
-
-    const updatedMetodo = { ...this.metodos[index], ...metodo }
-    this.metodos[index] = updatedMetodo
-    return Promise.resolve(updatedMetodo)
   }
 
-  static toggleEstado(id: number): Promise<Metodo | undefined> {
-    const index = this.metodos.findIndex((m) => m.id === id)
-    if (index === -1) {
-      return Promise.resolve(undefined)
+  static async getById(id: number): Promise<Metodo | undefined> {
+    try {
+      const response = await httpClient.get<{ data: Metodo }>(`/api/metodo/${id}`)
+      return response.data
+    } catch (error) {
+      console.error(`Error al obtener método con id ${id}:`, error)
+      return undefined
     }
-
-    const metodo = this.metodos[index]
-    const nuevoEstado = metodo.estado === "Activa" ? "Inactiva" : "Activa"
-
-    const updatedMetodo = { ...metodo, estado: nuevoEstado }
-    this.metodos[index] = updatedMetodo
-    return Promise.resolve(updatedMetodo)
   }
 
-  static delete(id: number): Promise<boolean> {
-    const index = this.metodos.findIndex((m) => m.id === id)
-    if (index === -1) {
-      return Promise.resolve(false)
+  static async create(empresaId: number, metodo: { nombre: string; descripcion: string }): Promise<Metodo> {
+    try {
+      console.log(`Creando método para empresa ${empresaId}:`, metodo)
+      const response = await httpClient.post<{ data: Metodo }>(`/api/metodos/store/${empresaId}`, metodo)
+      return response.data
+    } catch (error) {
+      console.error("Error al crear método:", error)
+      throw error
     }
+  }
 
-    this.metodos.splice(index, 1)
-    return Promise.resolve(true)
+  static async update(id: number, metodo: Partial<Metodo>): Promise<Metodo | undefined> {
+    try {
+      const response = await httpClient.put<{ data: Metodo }>(`/api/metodo/${id}`, metodo)
+      return response.data
+    } catch (error) {
+      console.error(`Error al actualizar método con id ${id}:`, error)
+      return undefined
+    }
+  }
+
+  static async toggleEstado(id: number): Promise<Metodo | undefined> {
+    try {
+      const metodo = await this.getById(id)
+      if (!metodo) return undefined
+
+      const response = await httpClient.put<{ data: Metodo }>(`/api/metodo/${id}`, {
+        estado: !metodo.estado,
+      })
+      return response.data
+    } catch (error) {
+      console.error(`Error al cambiar estado del método con id ${id}:`, error)
+      return undefined
+    }
+  }
+
+  static async delete(id: number): Promise<boolean> {
+    try {
+      await httpClient.delete(`/api/metodo/${id}`)
+      return true
+    } catch (error) {
+      console.error(`Error al eliminar método con id ${id}:`, error)
+      return false
+    }
   }
 }

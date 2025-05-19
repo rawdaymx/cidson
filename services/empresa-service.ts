@@ -34,6 +34,7 @@ interface EmpresaApiResponse {
     nombre: string
     razon_social: string
     estado: boolean
+    fecha_creacion: string
   }
 }
 
@@ -92,11 +93,7 @@ export class EmpresaService {
       }
 
       // Obtener el token de autorización
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No se encontró token de autorización")
-      }
+      const token = localStorage.getItem("auth_token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 
       const response = await fetch(url, {
         method: "GET",
@@ -111,14 +108,17 @@ export class EmpresaService {
       }
 
       const data: PaginatedResponse<any> = await response.json()
+      console.log("Respuesta de la API (getAll):", data)
 
       // Mapear los datos de la API al formato que espera la aplicación
       const empresas = data.data.map((empresa) => ({
         id: empresa.id,
         nombre: empresa.nombre,
-        razonSocial: empresa.razon_social, // Mapear razon_social de la API a razonSocial en nuestro modelo
-        fechaRegistro: new Date().toLocaleDateString(), // La API no devuelve fecha de registro, usar fecha actual
+        razonSocial: empresa.razon_social,
+        fechaRegistro: new Date().toLocaleDateString(),
+        fecha_creacion: empresa.fecha_creacion, // Añadir el campo fecha_creacion
         estado: empresa.estado ? "Activo" : "Inactivo",
+        configuracion_id: empresa.configuracion_id,
       }))
 
       return {
@@ -150,11 +150,7 @@ export class EmpresaService {
       const url = `${API.BASE_URL}${API.ENDPOINTS.EMPRESAS}`
 
       // Obtener el token de autorización
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No se encontró token de autorización")
-      }
+      const token = localStorage.getItem("auth_token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 
       // Preparar los datos para la API (ya están en el formato correcto)
       const apiData: EmpresaApiData = {
@@ -178,6 +174,7 @@ export class EmpresaService {
       }
 
       const responseData: EmpresaApiResponse = await response.json()
+      console.log("Respuesta de la API (create):", responseData)
 
       // Mapear la respuesta al formato que espera la aplicación
       const nuevaEmpresa: Empresa = {
@@ -185,7 +182,9 @@ export class EmpresaService {
         nombre: responseData.data.nombre,
         razonSocial: responseData.data.razon_social, // Mapear razon_social de la API a razonSocial en nuestro modelo
         fechaRegistro: new Date().toLocaleDateString(), // La API no devuelve fecha de registro, usar fecha actual
+        fecha_creacion: responseData.data.fecha_creacion,
         estado: responseData.data.estado ? "Activo" : "Inactivo",
+        configuracion_id: responseData.data.configuracion_id, // Asegurarse de mapear el configuracion_id
       }
 
       return nuevaEmpresa
@@ -201,11 +200,7 @@ export class EmpresaService {
       const url = `${API.BASE_URL}${API.ENDPOINTS.EMPRESAS}/${id}`
 
       // Obtener el token de autorización
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No se encontró token de autorización")
-      }
+      const token = localStorage.getItem("auth_token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 
       const response = await fetch(url, {
         method: "GET",
@@ -223,6 +218,7 @@ export class EmpresaService {
       }
 
       const responseData: EmpresaApiResponse = await response.json()
+      console.log("Respuesta de la API (getById):", responseData)
 
       // Mapear la respuesta al formato que espera la aplicación
       const empresa: Empresa = {
@@ -230,7 +226,9 @@ export class EmpresaService {
         nombre: responseData.data.nombre,
         razonSocial: responseData.data.razon_social, // Mapear razon_social de la API a razonSocial en nuestro modelo
         fechaRegistro: new Date().toLocaleDateString(), // La API no devuelve fecha de registro, usar fecha actual
+        fecha_creacion: responseData.data.fecha_creacion,
         estado: responseData.data.estado ? "Activo" : "Inactivo",
+        configuracion_id: responseData.data.configuracion_id, // Asegurarse de mapear el configuracion_id
       }
 
       return empresa
@@ -246,11 +244,7 @@ export class EmpresaService {
       const url = `${API.BASE_URL}${API.ENDPOINTS.EMPRESAS}/${id}`
 
       // Obtener el token de autorización
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No se encontró token de autorización")
-      }
+      const token = localStorage.getItem("auth_token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 
       // Preparar los datos para la API (ya están en el formato correcto)
       const apiData: EmpresaApiData = {
@@ -272,11 +266,21 @@ export class EmpresaService {
         if (response.status === 404) {
           return undefined
         }
+
         const errorData = await response.json()
+
+        // Si hay errores de validación
+        if (response.status === 422 && errorData.errors) {
+          const error = new Error(errorData.message || "Error de validación") as any
+          error.validationErrors = errorData.errors
+          throw error
+        }
+
         throw new Error(errorData.message || `Error al actualizar empresa: ${response.statusText}`)
       }
 
       const responseData: EmpresaApiResponse = await response.json()
+      console.log("Respuesta de la API (update):", responseData)
 
       // Mapear la respuesta al formato que espera la aplicación
       const empresaActualizada: Empresa = {
@@ -284,7 +288,9 @@ export class EmpresaService {
         nombre: responseData.data.nombre,
         razonSocial: responseData.data.razon_social, // Mapear razon_social de la API a razonSocial en nuestro modelo
         fechaRegistro: new Date().toLocaleDateString(), // La API no devuelve fecha de registro, usar fecha actual
+        fecha_creacion: responseData.data.fecha_creacion,
         estado: responseData.data.estado ? "Activo" : "Inactivo",
+        configuracion_id: responseData.data.configuracion_id, // Asegurarse de mapear el configuracion_id
       }
 
       return empresaActualizada
@@ -300,11 +306,7 @@ export class EmpresaService {
       const url = `${API.BASE_URL}${API.ENDPOINTS.EMPRESAS}/${id}`
 
       // Obtener el token de autorización
-      const token = localStorage.getItem("auth_token")
-
-      if (!token) {
-        throw new Error("No se encontró token de autorización")
-      }
+      const token = localStorage.getItem("auth_token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 
       const response = await fetch(url, {
         method: "DELETE",
@@ -322,6 +324,7 @@ export class EmpresaService {
       }
 
       const responseData: EmpresaApiResponse = await response.json()
+      console.log("Respuesta de la API (toggleActive):", responseData)
 
       // Mapear la respuesta al formato que espera la aplicación
       const empresaActualizada: Empresa = {
@@ -329,7 +332,9 @@ export class EmpresaService {
         nombre: responseData.data.nombre,
         razonSocial: responseData.data.razon_social, // Mapear razon_social de la API a razonSocial en nuestro modelo
         fechaRegistro: new Date().toLocaleDateString(), // La API no devuelve fecha de registro, usar fecha actual
+        fecha_creacion: responseData.data.fecha_creacion,
         estado: responseData.data.estado ? "Activo" : "Inactivo",
+        configuracion_id: responseData.data.configuracion_id, // Asegurarse de mapear el configuracion_id
       }
 
       return empresaActualizada

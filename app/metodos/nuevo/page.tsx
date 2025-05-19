@@ -1,27 +1,28 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Save } from "lucide-react"
 import Link from "next/link"
 import { MetodoService } from "@/services/metodo-service"
-import type { Metodo } from "@/types/metodo"
 
 export default function NuevoMetodoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const empresaId = searchParams.get("empresaId")
+
   const [formData, setFormData] = useState({
+    nombre: "",
     descripcion: "",
-    estado: "Activa" as "Activa" | "Inactiva",
   })
   const [errors, setErrors] = useState({
+    nombre: "",
     descripcion: "",
-    estado: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData({
       ...formData,
@@ -40,17 +41,17 @@ export default function NuevoMetodoPage() {
   const validateForm = (): boolean => {
     let isValid = true
     const newErrors = {
+      nombre: "",
       descripcion: "",
-      estado: "",
+    }
+
+    if (!formData.nombre.trim()) {
+      newErrors.nombre = "El nombre del método es requerido"
+      isValid = false
     }
 
     if (!formData.descripcion.trim()) {
       newErrors.descripcion = "La descripción del método es requerida"
-      isValid = false
-    }
-
-    if (!formData.estado) {
-      newErrors.estado = "El estado es requerido"
       isValid = false
     }
 
@@ -61,35 +62,25 @@ export default function NuevoMetodoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
+    if (!validateForm() || !empresaId) {
       return
     }
 
     try {
       setIsSubmitting(true)
 
-      // Obtener la fecha actual en formato dd/mm/aaaa
-      const today = new Date()
-      const day = String(today.getDate()).padStart(2, "0")
-      const month = String(today.getMonth() + 1).padStart(2, "0")
-      const year = today.getFullYear()
-      const fechaCreacion = `${day}/${month}/${year}`
-
-      const nuevoMetodo: Omit<Metodo, "id"> = {
+      await MetodoService.create(Number(empresaId), {
+        nombre: formData.nombre.trim(),
         descripcion: formData.descripcion.trim(),
-        estado: formData.estado,
-        fechaCreacion,
-      }
-
-      await MetodoService.create(nuevoMetodo)
+      })
 
       // Redirigir a la lista de métodos
-      router.push("/metodos")
+      router.push(`/metodos?empresaId=${empresaId}`)
     } catch (error) {
-      console.error("Error al guardar el método:", error)
+      console.error("Error al crear el método:", error)
       setErrors({
         ...errors,
-        descripcion: "Ocurrió un error al guardar el método. Por favor, intente nuevamente.",
+        nombre: "Ocurrió un error al crear el método. Por favor, intente nuevamente.",
       })
     } finally {
       setIsSubmitting(false)
@@ -99,7 +90,10 @@ export default function NuevoMetodoPage() {
   return (
     <div className="bg-[#f4f6fb] min-h-screen">
       <div className="pl-8 pr-6 py-6 max-w-[1200px]">
-        <Link href="/metodos" className="inline-flex items-center text-[#303e65] mb-6">
+        <Link
+          href={`/metodos${empresaId ? `?empresaId=${empresaId}` : ""}`}
+          className="inline-flex items-center text-[#303e65] mb-6"
+        >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Regresar
         </Link>
@@ -113,50 +107,31 @@ export default function NuevoMetodoPage() {
               <div>
                 <input
                   type="text"
+                  id="nombre"
+                  name="nombre"
+                  placeholder="Nombre Del Método"
+                  value={formData.nombre}
+                  onChange={handleChange}
+                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
+                    errors.nombre ? "ring-2 ring-red-500" : ""
+                  }`}
+                />
+                {errors.nombre && <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>}
+              </div>
+
+              <div>
+                <textarea
                   id="descripcion"
                   name="descripcion"
                   placeholder="Descripción Del Método"
                   value={formData.descripcion}
                   onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
+                  rows={4}
+                  className={`w-full px-4 py-3 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
                     errors.descripcion ? "ring-2 ring-red-500" : ""
                   }`}
                 />
                 {errors.descripcion && <p className="mt-1 text-sm text-red-500">{errors.descripcion}</p>}
-              </div>
-
-              <div className="relative">
-                <select
-                  id="estado"
-                  name="estado"
-                  value={formData.estado}
-                  onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 appearance-none focus:ring-2 focus:ring-[#303e65] ${
-                    errors.estado ? "ring-2 ring-red-500" : ""
-                  }`}
-                >
-                  <option value="Estado" disabled>
-                    Estado
-                  </option>
-                  <option value="Activa">Activa</option>
-                  <option value="Inactiva">Inactiva</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                {errors.estado && <p className="mt-1 text-sm text-red-500">{errors.estado}</p>}
               </div>
             </div>
 

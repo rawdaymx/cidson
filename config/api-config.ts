@@ -2,27 +2,19 @@
  * Determina la URL base de la API según el entorno actual
  */
 const getBaseUrl = (): string => {
-  const env = process.env.NEXT_PUBLIC_ENV || "test";
+  const env = process.env.NEXT_PUBLIC_ENV || "development"
 
   switch (env) {
     case "production":
-      return (
-        process.env.NEXT_PUBLIC_API_URL_PRODUCTION ||
-        "https://cidson.api.production.com"
-      );
+      return process.env.NEXT_PUBLIC_API_URL_PRODUCTION || "https://cidson.api.production.com"
     case "test":
-      return (
-        process.env.NEXT_PUBLIC_API_URL_TEST || "https://cidson.int.qaenv.dev"
-      );
+      return process.env.NEXT_PUBLIC_API_URL_TEST || "https://cidson.int.qaenv.dev"
     case "development":
     default:
       // En desarrollo, usamos la URL de pruebas por defecto si no hay una URL específica configurada
-      return (
-        process.env.NEXT_PUBLIC_API_URL_DEVELOPMENT ||
-        "https://cidson.int.qaenv.dev"
-      );
+      return process.env.NEXT_PUBLIC_API_URL_DEVELOPMENT || "https://cidson.int.qaenv.dev"
   }
-};
+}
 
 /**
  * Configuración de la API
@@ -82,4 +74,4 @@ export const API = {
      */
     CHECKLISTS: "/api/checklists",
   },
-};
+}

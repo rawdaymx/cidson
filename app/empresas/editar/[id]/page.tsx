@@ -115,14 +115,41 @@ export default function EditarEmpresaPage() {
       }
 
       // Actualizar la empresa usando el servicio
-      const empresaActualizada = await EmpresaService.update(id, empresaData)
+      try {
+        const empresaActualizada = await EmpresaService.update(id, empresaData)
 
-      if (!empresaActualizada) {
-        throw new Error("No se pudo actualizar la empresa")
+        if (!empresaActualizada) {
+          throw new Error("No se pudo actualizar la empresa")
+        }
+
+        // Redirigir a la lista de empresas
+        router.push("/empresas")
+      } catch (error: any) {
+        // Verificar si es un error de validación
+        if (error.validationErrors) {
+          // Mapear los errores de validación al estado de errores
+          const newErrors = { ...errors }
+
+          if (error.validationErrors.nombre) {
+            newErrors.nombre = error.validationErrors.nombre[0].replace(
+              "The nombre has already been taken.",
+              "Este nombre de empresa ya está en uso.",
+            )
+          }
+
+          if (error.validationErrors.razon_social) {
+            newErrors.razonSocial = error.validationErrors.razon_social[0].replace(
+              "The razon social has already been taken.",
+              "Esta razón social ya está en uso.",
+            )
+          }
+
+          setErrors(newErrors)
+        } else {
+          // Si no es un error de validación, establecer el error general
+          setError(error.message || "Error al actualizar la empresa")
+        }
       }
-
-      // Redirigir a la lista de empresas
-      router.push("/empresas")
     } catch (error: any) {
       console.error("Error al actualizar la empresa:", error)
       setError(error.message || "Error al actualizar la empresa")

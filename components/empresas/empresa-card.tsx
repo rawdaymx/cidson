@@ -154,7 +154,7 @@ export default function EmpresaCard({ empresa, onStatusChange }: EmpresaCardProp
         <div className="flex justify-between items-end pt-2 border-t border-gray-100">
           <div>
             <p className="text-xs text-gray-500 mb-1">Fecha de registro</p>
-            <p className="text-sm text-gray-700">{empresa.fechaRegistro}</p>
+            <p className="text-sm text-gray-700">{empresa.fecha_creacion || empresa.fechaRegistro}</p>
           </div>
 
           <div className="text-right">

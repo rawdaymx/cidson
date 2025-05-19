@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Filter, Plus, Search } from "lucide-react"
+import type React from "react"
+
+import { useState, useEffect, useCallback } from "react"
+import { Filter, Plus, Search, ArrowLeft } from "lucide-react"
 import type { Area } from "@/types/area"
 import { AreaService } from "@/services/area-service"
 import Link from "next/link"
@@ -17,51 +19,62 @@ export default function AreasModule() {
   const [filteredAreas, setFilteredAreas] = useState<Area[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
 
-  // Cargar áreas
-  useEffect(() => {
-    const fetchAreas = async () => {
+  // Cargar áreas con paginación
+  const fetchAreas = useCallback(
+    async (showLoading = true) => {
       try {
-        setIsLoading(true)
-        let data
-        if (empresaId) {
-          // Assuming AreaService.getAll accepts an optional empresaId parameter
-          data = await AreaService.getAll(Number(empresaId))
-        } else {
-          data = await AreaService.getAll()
+        if (showLoading) {
+          setIsLoading(true)
         }
-        setAreas(data)
+
+        if (!empresaId) {
+          setAreas([])
+          setFilteredAreas([])
+          setIsLoading(false)
+          return
+        }
+
+        const configuracionId = Number.parseInt(empresaId)
+        const result = await AreaService.getAll(configuracionId, currentPage, searchTerm)
+
+        setAreas(result.areas)
+        setTotalPages(result.pagination.totalPages)
+        setTotalItems(result.pagination.totalItems)
+        setItemsPerPage(result.pagination.perPage)
+
+        // Aplicar filtros de estado (estos se aplican en el cliente)
+        let filtered = [...result.areas]
+
+        if (filtros.includes("1")) {
+          filtered = filtered.filter((area) => area.estado === "Activa")
+        }
+
+        if (filtros.includes("2")) {
+          filtered = filtered.filter((area) => area.estado === "Inactiva")
+        }
+
+        setFilteredAreas(filtered)
       } catch (error) {
         console.error("Error al cargar áreas:", error)
+        setAreas([])
+        setFilteredAreas([])
       } finally {
-        setIsLoading(false)
+        if (showLoading) {
+          setIsLoading(false)
+        }
       }
-    }
+    },
+    [empresaId, currentPage, searchTerm, filtros],
+  )
 
-    fetchAreas()
-  }, [empresaId])
-
-  // Filtrar áreas cuando cambian los filtros o el término de búsqueda
+  // Efecto para cargar áreas cuando cambian los parámetros relevantes
   useEffect(() => {
-    let result = [...areas]
-
-    // Aplicar filtro de búsqueda
-    if (searchTerm) {
-      result = result.filter((area) => area.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
-    }
-
-    // Aplicar filtros de estado
-    if (filtros.includes("1")) {
-      result = result.filter((area) => area.estado === "Activa")
-    }
-
-    if (filtros.includes("2")) {
-      result = result.filter((area) => area.estado === "Inactiva")
-    }
-
-    setFilteredAreas(result)
-  }, [searchTerm, filtros, areas])
+    fetchAreas(true)
+  }, [fetchAreas])
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
@@ -74,27 +87,34 @@ export default function AreasModule() {
   const limpiarFiltros = () => {
     setFiltros([])
     setSearchTerm("")
+    setCurrentPage(1)
   }
 
-  const handleToggleEstado = async (id: number) => {
+  // Modificar la función handleToggleEstado para recargar los datos sin mostrar el indicador de carga
+  const handleToggleEstado = async (id: number, currentEstado: string) => {
     try {
+      // Llamar al servicio para cambiar el estado
       await AreaService.toggleEstado(id)
-      const updatedAreas = await AreaService.getAll()
-      setAreas(updatedAreas)
+
+      // Recargar los datos sin mostrar el indicador de carga
+      await fetchAreas(false)
     } catch (error) {
       console.error("Error al cambiar estado:", error)
+      alert(
+        `Error al ${currentEstado === "Activa" ? "inactivar" : "activar"} el área: ${error instanceof Error ? error.message : "Error desconocido"}`,
+      )
     }
   }
 
   const handleEditArea = (id: number) => {
-    router.push(`/areas/editar/${id}`)
+    router.push(`/areas/editar/${id}${empresaId ? `?empresaId=${empresaId}` : ""}`)
   }
 
-  // Paginación
-  const totalPages = Math.ceil(filteredAreas.length / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredAreas.slice(indexOfFirstItem, indexOfLastItem)
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setCurrentPage(1) // Resetear a la primera página al buscar
+    fetchAreas(true) // Buscar inmediatamente con indicador de carga
+  }
 
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
@@ -113,8 +133,19 @@ export default function AreasModule() {
     )
   }
 
+  // Para propósitos de depuración
+  console.log("Paginación:", { totalPages, currentPage, totalItems, itemsPerPage })
+
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
+      {/* Botón de Volver */}
+      <div className="mb-4">
+        <Link href="/empresas" className="inline-flex items-center text-[#303e65] hover:text-[#4a5d8f] font-medium">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Volver
+        </Link>
+      </div>
+
       <div className="mb-4 sm:mb-6 md:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Áreas</h1>
         <p className="text-sm sm:text-base text-gray-600">Administra las áreas con las que trabaja CIDSON.</p>
@@ -124,7 +155,7 @@ export default function AreasModule() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{filteredAreas.length}</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{totalItems}</span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
           </div>
 
@@ -132,7 +163,7 @@ export default function AreasModule() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <div className="relative w-full sm:w-56">
+              <form onSubmit={handleSearch} className="relative w-full sm:w-56">
                 <input
                   type="text"
                   placeholder="Buscar área..."
@@ -140,8 +171,10 @@ export default function AreasModule() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              </div>
+                <button type="submit" className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400">
+                  <Search className="h-4 w-4" />
+                </button>
+              </form>
 
               <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 <button
@@ -203,7 +236,7 @@ export default function AreasModule() {
 
             {/* Botón de Nueva Área */}
             <Link
-              href="/areas/nueva"
+              href={empresaId ? `/areas/nueva?empresaId=${empresaId}` : "/areas/nueva"}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nueva Área
@@ -224,7 +257,7 @@ export default function AreasModule() {
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((area) => (
+              {filteredAreas.map((area) => (
                 <tr key={area.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{area.nombre}</td>
                   <td className="py-3 px-4">
@@ -256,7 +289,7 @@ export default function AreasModule() {
 
                       {/* Botón de activar/desactivar con SVG inline */}
                       <button
-                        onClick={() => handleToggleEstado(area.id)}
+                        onClick={() => handleToggleEstado(area.id, area.estado)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
                         aria-label={area.estado === "Activa" ? "Desactivar" : "Activar"}
                       >
@@ -305,57 +338,69 @@ export default function AreasModule() {
           </div>
         )}
 
-        {/* Paginación */}
-        {filteredAreas.length > 0 && (
-          <div className="flex justify-center py-4 border-t border-gray-100">
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => goToPage(1)}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-              >
-                « Primera
-              </button>
-              <button
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-              >
-                ‹ Anterior
-              </button>
+        {/* Paginación - Siempre mostrar si hay más de 1 página */}
+        <div className="flex justify-center py-4 border-t border-gray-100">
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => goToPage(1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+            >
+              « Primera
+            </button>
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+            >
+              ‹ Anterior
+            </button>
 
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => goToPage(pageNum)}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
+            {Array.from({ length: Math.max(totalPages, 1) }, (_, i) => {
+              // Mostrar páginas alrededor de la página actual
+              let pageNum
+              if (totalPages <= 5) {
+                pageNum = i + 1
+              } else if (currentPage <= 3) {
+                pageNum = i + 1
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i
+              } else {
+                pageNum = currentPage - 2 + i
+              }
 
-              <button
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-              >
-                Siguiente ›
-              </button>
-              <button
-                onClick={() => goToPage(totalPages)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-              >
-                Última »
-              </button>
-            </div>
+              // Solo mostrar hasta 5 páginas
+              if (i >= 5) return null
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => goToPage(pageNum)}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+            >
+              Siguiente ›
+            </button>
+            <button
+              onClick={() => goToPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+            >
+              Última »
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Filter, Plus, Search } from "lucide-react"
-import type { Metodo } from "@/types/metodo"
+import { useState, useEffect, type KeyboardEvent } from "react"
+import { Filter, Plus, Search, ArrowLeft } from "lucide-react"
+import type { Metodo, MetodoResponse } from "@/types/metodo"
 import { MetodoService } from "@/services/metodo-service"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -12,57 +12,82 @@ export default function MetodosModule() {
   const searchParams = useSearchParams()
   const empresaId = searchParams.get("empresaId")
   const [filtros, setFiltros] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchInputValue, setSearchInputValue] = useState("") // Valor del input
+  const [searchTerm, setSearchTerm] = useState("") // Término de búsqueda aplicado
   const [metodos, setMetodos] = useState<Metodo[]>([])
   const [filteredMetodos, setFilteredMetodos] = useState<Metodo[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [totalPages, setTotalPages] = useState(1)
+  const [metaData, setMetaData] = useState<MetodoResponse["meta"] | null>(null)
+  const [links, setLinks] = useState<MetodoResponse["links"] | null>(null)
 
   // Cargar métodos
   useEffect(() => {
     const fetchMetodos = async () => {
       try {
         setIsLoading(true)
-        let data
-        if (empresaId) {
-          // Modificar la petición para incluir el empresaId
-          // Por ejemplo: fetchMetodos(Number(empresaId))
-          data = await MetodoService.getAll(Number(empresaId))
-        } else {
-          data = await MetodoService.getAll()
+        setError(null)
+
+        if (!empresaId) {
+          console.log("No se proporcionó empresaId, no se pueden cargar métodos")
+          setMetodos([])
+          setFilteredMetodos([])
+          setIsLoading(false)
+          return
         }
-        setMetodos(data)
+
+        // Cargar los métodos con el servicio actualizado
+        const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm)
+        console.log("Respuesta de API:", response)
+
+        if (response && response.data) {
+          setMetodos(response.data)
+          setFilteredMetodos(response.data)
+
+          if (response.meta) {
+            setMetaData(response.meta)
+            setTotalPages(response.meta.last_page)
+          }
+
+          if (response.links) {
+            setLinks(response.links)
+          }
+        } else {
+          console.error("Respuesta de API inválida:", response)
+          setError("La respuesta de la API no tiene el formato esperado")
+          setMetodos([])
+          setFilteredMetodos([])
+        }
       } catch (error) {
         console.error("Error al cargar métodos:", error)
+        setError("Error al cargar los métodos. Por favor, intente nuevamente.")
+        setMetodos([])
+        setFilteredMetodos([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchMetodos()
-  }, [empresaId])
+  }, [empresaId, currentPage, searchTerm])
 
-  // Filtrar métodos cuando cambian los filtros o el término de búsqueda
+  // Filtrar métodos localmente por estado
   useEffect(() => {
     let result = [...metodos]
 
-    // Aplicar filtro de búsqueda
-    if (searchTerm) {
-      result = result.filter((metodo) => metodo.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-    }
-
     // Aplicar filtros de estado
     if (filtros.includes("1")) {
-      result = result.filter((metodo) => metodo.estado === "Activa")
+      result = result.filter((metodo) => metodo.estado === true)
     }
 
     if (filtros.includes("2")) {
-      result = result.filter((metodo) => metodo.estado === "Inactiva")
+      result = result.filter((metodo) => metodo.estado === false)
     }
 
     setFilteredMetodos(result)
-  }, [searchTerm, filtros, metodos])
+  }, [filtros, metodos])
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
@@ -74,29 +99,38 @@ export default function MetodosModule() {
 
   const limpiarFiltros = () => {
     setFiltros([])
+    setSearchInputValue("")
     setSearchTerm("")
   }
 
   const handleToggleEstado = async (id: number) => {
     try {
       await MetodoService.toggleEstado(id)
-      const updatedMetodos = await MetodoService.getAll()
-      setMetodos(updatedMetodos)
+      // Recargar la página actual
+      const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm)
+      if (response && response.data) {
+        setMetodos(response.data)
+      }
     } catch (error) {
       console.error("Error al cambiar estado:", error)
+      setError("Error al cambiar el estado del método. Por favor, intente nuevamente.")
     }
   }
 
   const handleEditMetodo = (id: number) => {
-    router.push(`/metodos/editar/${id}`)
+    router.push(`/metodos/editar/${id}${empresaId ? `?empresaId=${empresaId}` : ""}`)
+  }
+
+  // Manejar la búsqueda cuando se presiona Enter
+  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      setSearchTerm(searchInputValue)
+      setCurrentPage(1) // Resetear a la primera página al buscar
+    }
   }
 
   // Paginación
-  const totalPages = Math.ceil(filteredMetodos.length / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredMetodos.slice(indexOfFirstItem, indexOfLastItem)
-
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
       setCurrentPage(page)
@@ -114,8 +148,28 @@ export default function MetodosModule() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#f4f6fb]">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">⚠️ Error</div>
+          <p className="text-gray-700 mb-4">{error}</p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-[#303e65] text-white rounded-md">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
+      {/* Botón de regresar a empresas */}
+      <Link href="/empresas" className="inline-flex items-center text-[#303e65] mb-6">
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Regresar
+      </Link>
+
       <div className="mb-4 sm:mb-6 md:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Método</h1>
         <p className="text-sm sm:text-base text-gray-600">Administra los métodos con los que trabaja CIDSON.</p>
@@ -125,7 +179,9 @@ export default function MetodosModule() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{filteredMetodos.length}</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
+              {metaData ? metaData.total : filteredMetodos.length}
+            </span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
           </div>
 
@@ -136,10 +192,11 @@ export default function MetodosModule() {
               <div className="relative w-full sm:w-56">
                 <input
                   type="text"
-                  placeholder="Buscar método..."
+                  placeholder="Buscar método... (Enter)"
                   className="pl-9 bg-gray-50 border border-gray-200 rounded-md w-full p-2 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchInputValue}
+                  onChange={(e) => setSearchInputValue(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
                 />
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               </div>
@@ -151,7 +208,7 @@ export default function MetodosModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Filtro 1 {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -160,7 +217,7 @@ export default function MetodosModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Filtro 2 {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -181,7 +238,7 @@ export default function MetodosModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Filtro 1 {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -190,7 +247,7 @@ export default function MetodosModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Filtro 2 {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -204,7 +261,7 @@ export default function MetodosModule() {
 
             {/* Botón de Nuevo Método */}
             <Link
-              href="/metodos/nuevo"
+              href={`/metodos/nuevo${empresaId ? `?empresaId=${empresaId}` : ""}`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nuevo Método
@@ -219,23 +276,25 @@ export default function MetodosModule() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f4f6fb]">
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Descripción Del Método</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((metodo) => (
+              {filteredMetodos.map((metodo) => (
                 <tr key={metodo.id} className="border-t border-gray-100">
+                  <td className="py-3 px-4 text-gray-800">{metodo.nombre}</td>
                   <td className="py-3 px-4 text-gray-800">{metodo.descripcion}</td>
                   <td className="py-3 px-4">
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          metodo.estado === "Activa" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          metodo.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {metodo.estado}
+                        {metodo.estado ? "Activa" : "Inactiva"}
                       </span>
                     </div>
                   </td>
@@ -259,9 +318,9 @@ export default function MetodosModule() {
                       <button
                         onClick={() => handleToggleEstado(metodo.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
-                        aria-label={metodo.estado === "Activa" ? "Desactivar" : "Activar"}
+                        aria-label={metodo.estado ? "Desactivar" : "Activar"}
                       >
-                        {metodo.estado === "Activa" ? (
+                        {metodo.estado ? (
                           <svg
                             width="16"
                             height="16"
@@ -306,10 +365,11 @@ export default function MetodosModule() {
           </div>
         )}
 
-        {/* Paginación */}
-        {filteredMetodos.length > 0 && (
+        {/* Paginación mejorada */}
+        {metaData && metaData.total > 0 && (
           <div className="flex justify-center py-4 border-t border-gray-100">
             <div className="flex items-center space-x-1">
+              {/* Primera página */}
               <button
                 onClick={() => goToPage(1)}
                 disabled={currentPage === 1}
@@ -317,6 +377,8 @@ export default function MetodosModule() {
               >
                 « Primera
               </button>
+
+              {/* Anterior */}
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
@@ -325,21 +387,28 @@ export default function MetodosModule() {
                 ‹ Anterior
               </button>
 
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => goToPage(pageNum)}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                )
-              })}
+              {/* Números de página */}
+              {metaData.links
+                .filter((link) => !link.label.includes("Previous") && !link.label.includes("Next"))
+                .map((link, index) => {
+                  // Intentar convertir la etiqueta a un número
+                  const pageNumber = Number.parseInt(link.label)
+                  if (isNaN(pageNumber)) return null
 
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => goToPage(pageNumber)}
+                      className={`px-3 py-1 text-sm rounded-md ${
+                        link.active ? "bg-[#303e65] text-white" : "text-gray-500"
+                      }`}
+                    >
+                      {link.label}
+                    </button>
+                  )
+                })}
+
+              {/* Siguiente */}
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
@@ -347,6 +416,8 @@ export default function MetodosModule() {
               >
                 Siguiente ›
               </button>
+
+              {/* Última página */}
               <button
                 onClick={() => goToPage(totalPages)}
                 disabled={currentPage === totalPages}

@@ -1,99 +1,236 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { Filter, Plus, Search } from "lucide-react"
+import { Filter, Plus, Search, ArrowLeft } from "lucide-react"
 import type { Actividad } from "@/types/actividad"
 import { ActividadService } from "@/services/actividad-service"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { EmpresaService } from "@/services/empresa-service"
 
 export default function ActividadesModule() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const empresaId = searchParams.get("empresaId")
+  const configuracionIdParam = searchParams.get("configuracionId")
+  const pageParam = searchParams.get("page")
+  const returnToParam = searchParams.get("returnTo")
+
   const [filtros, setFiltros] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const [inputSearchTerm, setInputSearchTerm] = useState("")
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("")
   const [actividades, setActividades] = useState<Actividad[]>([])
-  const [filteredActividades, setFilteredActividades] = useState<Actividad[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [currentPage, setCurrentPage] = useState(pageParam ? Number.parseInt(pageParam) : 1)
+  const [configuracionId, setConfiguracionId] = useState<number | null>(
+    configuracionIdParam ? Number(configuracionIdParam) : null,
+  )
+  const [error, setError] = useState<string | null>(null)
+  const [paginationInfo, setPaginationInfo] = useState<{
+    totalPages: number
+    totalItems: number
+    links: Array<{ url: string | null; label: string; active: boolean }>
+  }>({
+    totalPages: 1,
+    totalItems: 0,
+    links: [],
+  })
+
+  // Obtener el configuracion_id de la empresa si no se proporcionó como parámetro
+  useEffect(() => {
+    const fetchEmpresaConfiguracion = async () => {
+      // Si ya tenemos el configuracionId del parámetro, no necesitamos obtenerlo de la empresa
+      if (configuracionIdParam) {
+        console.log("Usando configuracionId del parámetro:", configuracionIdParam)
+        return
+      }
+
+      if (!empresaId) {
+        setError("No se proporcionó ID de empresa")
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        console.log("Obteniendo configuración para empresa ID:", empresaId)
+        const empresa = await EmpresaService.getById(Number(empresaId))
+        console.log("Empresa obtenida:", empresa)
+
+        if (empresa && empresa.configuracion_id) {
+          console.log("Configuración ID obtenido de la empresa:", empresa.configuracion_id)
+          setConfiguracionId(empresa.configuracion_id)
+        } else {
+          console.error("No se encontró configuracion_id en la empresa:", empresa)
+
+          // Si no hay configuracion_id, usar un valor por defecto (1) para pruebas
+          console.log("Usando configuracion_id por defecto: 1")
+          setConfiguracionId(1)
+        }
+      } catch (error) {
+        console.error("Error al obtener la configuración de la empresa:", error)
+        setError("Error al cargar la configuración de la empresa")
+      }
+    }
+
+    fetchEmpresaConfiguracion()
+  }, [empresaId, configuracionIdParam])
 
   // Cargar actividades
   useEffect(() => {
     const fetchActividades = async () => {
+      if (!configuracionId) {
+        console.log("No hay configuracionId, no se pueden cargar actividades")
+        return
+      }
+
       try {
         setIsLoading(true)
-        const data = await ActividadService.getAll()
-        setActividades(data)
+        setError(null)
+
+        // Preparar filtros para la API
+        const apiFilters: { nombre?: string; estado?: number; page?: number } = {
+          page: currentPage,
+        }
+
+        if (appliedSearchTerm) {
+          apiFilters.nombre = appliedSearchTerm
+        }
+
+        // Aplicar filtros de estado
+        if (filtros.includes("1") && !filtros.includes("2")) {
+          apiFilters.estado = 1 // Activas
+        } else if (!filtros.includes("1") && filtros.includes("2")) {
+          apiFilters.estado = 0 // Inactivas
+        }
+
+        console.log("Solicitando actividades con configuracionId:", configuracionId, "y filtros:", apiFilters)
+        const response = await ActividadService.getAll(configuracionId, apiFilters)
+
+        // Imprimir la respuesta para depuración
+        console.log("Respuesta de la API:", JSON.stringify(response, null, 2))
+
+        // Verificar si las actividades tienen el campo fecha_creacion
+        response.data.forEach((actividad, index) => {
+          console.log(`Actividad ${index} (ID: ${actividad.id}):`, actividad)
+          console.log(`  fecha_creacion:`, actividad.fecha_creacion)
+        })
+
+        // Usar los datos tal como vienen de la API sin modificaciones
+        setActividades(response.data)
+
+        // Actualizar información de paginación
+        setPaginationInfo({
+          totalPages: response.meta.last_page,
+          totalItems: response.meta.total,
+          links: response.meta.links,
+        })
       } catch (error) {
         console.error("Error al cargar actividades:", error)
+        setError("Error al cargar las actividades. Por favor, intente nuevamente.")
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchActividades()
-  }, [empresaId])
-
-  // Filtrar actividades cuando cambian los filtros o el término de búsqueda
-  useEffect(() => {
-    let result = [...actividades]
-
-    // Aplicar filtro de búsqueda
-    if (searchTerm) {
-      result = result.filter((actividad) => actividad.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
+    if (configuracionId) {
+      fetchActividades()
+    } else {
+      setIsLoading(false)
     }
-
-    // Aplicar filtros de estado
-    if (filtros.includes("1")) {
-      result = result.filter((actividad) => actividad.estado === "Activa")
-    }
-
-    if (filtros.includes("2")) {
-      result = result.filter((actividad) => actividad.estado === "Inactiva")
-    }
-
-    setFilteredActividades(result)
-  }, [searchTerm, filtros, actividades])
+  }, [configuracionId, appliedSearchTerm, filtros, currentPage])
 
   const toggleFiltro = (filtro: string) => {
-    if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro))
-    } else {
-      setFiltros([...filtros, filtro])
+    const newFiltros = filtros.includes(filtro) ? filtros.filter((f) => f !== filtro) : [...filtros, filtro]
+
+    setFiltros(newFiltros)
+    // Resetear a la primera página cuando se cambian los filtros
+    setCurrentPage(1)
+  }
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(inputSearchTerm)
+    setCurrentPage(1) // Resetear a la primera página al buscar
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      handleSearch()
     }
   }
 
   const limpiarFiltros = () => {
     setFiltros([])
-    setSearchTerm("")
+    setInputSearchTerm("")
+    setAppliedSearchTerm("")
+    setCurrentPage(1)
   }
 
+  // Reemplazar el método handleToggleEstado con esta implementación mejorada
   const handleToggleEstado = async (id: number) => {
+    if (!configuracionId) return
+
     try {
       await ActividadService.toggleEstado(id)
-      const updatedActividades = await ActividadService.getAll()
-      setActividades(updatedActividades)
+
+      // Recargar actividades después de cambiar el estado
+      const response = await ActividadService.getAll(configuracionId, {
+        nombre: appliedSearchTerm || undefined,
+        page: currentPage,
+        estado: getEstadoFilter(),
+      })
+
+      setActividades(response.data)
+      setPaginationInfo({
+        totalPages: response.meta.last_page,
+        totalItems: response.meta.total,
+        links: response.meta.links,
+      })
     } catch (error) {
       console.error("Error al cambiar estado:", error)
     }
   }
 
   const handleEditActividad = (id: number) => {
-    router.push(`/actividades/editar/${id}`)
+    const params = new URLSearchParams()
+    if (empresaId) params.append("empresaId", empresaId)
+    if (configuracionId) params.append("configuracionId", configuracionId.toString())
+
+    router.push(`/actividades/editar/${id}?${params.toString()}`)
   }
 
-  // Paginación
-  const totalPages = Math.ceil(filteredActividades.length / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredActividades.slice(indexOfFirstItem, indexOfLastItem)
+  const getEstadoFilter = (): number | undefined => {
+    if (filtros.includes("1") && !filtros.includes("2")) {
+      return 1 // Activas
+    } else if (!filtros.includes("1") && filtros.includes("2")) {
+      return 0 // Inactivas
+    }
+    return undefined
+  }
 
   const goToPage = (page: number) => {
-    if (page > 0 && page <= totalPages) {
+    if (page > 0 && page <= paginationInfo.totalPages) {
       setCurrentPage(page)
+
+      // Actualizar la URL con el nuevo número de página
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("page", page.toString())
+
+      // Mantener los otros parámetros
+      if (empresaId) params.set("empresaId", empresaId)
+      if (configuracionId) params.set("configuracionId", configuracionId.toString())
+      if (returnToParam) params.set("returnTo", returnToParam)
+
+      // Actualizar la URL sin recargar la página
+      router.push(`/actividades?${params.toString()}`, { scroll: false })
     }
+  }
+
+  // Modificar la función handleVolver para que redirija a /empresas
+  const handleVolver = () => {
+    router.push("/empresas")
   }
 
   if (isLoading) {
@@ -107,18 +244,41 @@ export default function ActividadesModule() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#f4f6fb]">
+        <div className="text-center">
+          <p className="text-xl text-gray-700">{error}</p>
+          <button onClick={() => router.back()} className="mt-4 px-4 py-2 bg-[#303e65] text-white rounded-md">
+            Volver
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
+      {/* Botón Volver */}
+      <button
+        onClick={handleVolver}
+        className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
+      >
+        <ArrowLeft className="mr-1 h-4 w-4" />
+        <span>Volver</span>
+      </button>
+
       <div className="mb-4 sm:mb-6 md:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Actividades</h1>
         <p className="text-sm sm:text-base text-gray-600">Administra las actividades con las que trabaja CIDSON.</p>
+        {configuracionId && <p className="text-sm text-gray-500">Configuración ID: {configuracionId}</p>}
       </div>
 
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{filteredActividades.length}</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{paginationInfo.totalItems}</span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
           </div>
 
@@ -131,9 +291,17 @@ export default function ActividadesModule() {
                   type="text"
                   placeholder="Buscar actividad..."
                   className="pl-9 bg-gray-50 border border-gray-200 rounded-md w-full p-2 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={inputSearchTerm}
+                  onChange={(e) => setInputSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyDown}
                 />
+                <button
+                  onClick={handleSearch}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Buscar"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               </div>
 
@@ -144,7 +312,7 @@ export default function ActividadesModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Filtro 1 {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -153,13 +321,13 @@ export default function ActividadesModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Filtro 2 {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
                   className="px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center"
                   onClick={limpiarFiltros}
-                  disabled={filtros.length === 0 && !searchTerm}
+                  disabled={filtros.length === 0 && !inputSearchTerm && !appliedSearchTerm}
                 >
                   <Filter className="mr-1 h-4 w-4" /> Limpiar
                 </button>
@@ -174,7 +342,7 @@ export default function ActividadesModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Filtro 1 {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -183,21 +351,25 @@ export default function ActividadesModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Filtro 2 {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
                 className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center justify-center"
                 onClick={limpiarFiltros}
-                disabled={filtros.length === 0 && !searchTerm}
+                disabled={filtros.length === 0 && !inputSearchTerm && !appliedSearchTerm}
               >
                 <Filter className="mr-1 h-4 w-4" /> Limpiar
               </button>
             </div>
 
-            {/* Botón de Nueva Actividad - Ahora es un Link a la página de nueva actividad */}
+            {/* Botón de Nueva Actividad */}
             <Link
-              href="/actividades/nueva"
+              href={`/actividades/nueva?${new URLSearchParams({
+                ...(empresaId ? { empresaId } : {}),
+                ...(configuracionId ? { configuracionId: configuracionId.toString() } : {}),
+                ...(returnToParam ? { returnTo: returnToParam } : {}),
+              }).toString()}`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nueva Actividad
@@ -213,22 +385,27 @@ export default function ActividadesModule() {
             <thead>
               <tr className="bg-[#f4f6fb]">
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre</th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">Fecha Creación</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((actividad) => (
+              {actividades.map((actividad) => (
                 <tr key={actividad.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{actividad.nombre}</td>
+                  <td className="py-3 px-4 text-center text-gray-800">
+                    {/* Mostrar la fecha exactamente como viene de la API */}
+                    {actividad.fecha_creacion || "N/A"}
+                  </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          actividad.estado === "Activa" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          actividad.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {actividad.estado}
+                        {actividad.estado ? "Activa" : "Inactiva"}
                       </span>
                     </div>
                   </td>
@@ -252,9 +429,9 @@ export default function ActividadesModule() {
                       <button
                         onClick={() => handleToggleEstado(actividad.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
-                        aria-label={actividad.estado === "Activa" ? "Desactivar" : "Activar"}
+                        aria-label={actividad.estado ? "Desactivar" : "Activar"}
                       >
-                        {actividad.estado === "Activa" ? (
+                        {actividad.estado ? (
                           <svg
                             width="16"
                             height="16"
@@ -290,7 +467,7 @@ export default function ActividadesModule() {
           </table>
         </div>
 
-        {filteredActividades.length === 0 && (
+        {actividades.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No se encontraron actividades con los filtros aplicados</p>
             <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
@@ -299,8 +476,8 @@ export default function ActividadesModule() {
           </div>
         )}
 
-        {/* Paginación */}
-        {filteredActividades.length > 0 && (
+        {/* Paginación del servidor */}
+        {actividades.length > 0 && paginationInfo.totalPages > 0 && (
           <div className="flex justify-center py-4 border-t border-gray-100">
             <div className="flex items-center space-x-1">
               <button
@@ -318,31 +495,39 @@ export default function ActividadesModule() {
                 ‹ Anterior
               </button>
 
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1
-                return (
+              {paginationInfo.links
+                .filter((link) => !link.label.includes("Previous") && !link.label.includes("Next"))
+                .map((link, index) => (
                   <button
-                    key={pageNum}
-                    onClick={() => goToPage(pageNum)}
+                    key={index}
+                    onClick={() => {
+                      if (link.url) {
+                        const url = new URL(link.url)
+                        const page = url.searchParams.get("page")
+                        if (page) {
+                          goToPage(Number.parseInt(page))
+                        }
+                      }
+                    }}
                     className={`px-3 py-1 text-sm rounded-md ${
-                      currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
+                      link.active ? "bg-[#303e65] text-white" : "text-gray-500"
                     }`}
+                    disabled={!link.url}
                   >
-                    {pageNum}
+                    {link.label}
                   </button>
-                )
-              })}
+                ))}
 
               <button
                 onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === paginationInfo.totalPages}
                 className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
               >
                 Siguiente ›
               </button>
               <button
-                onClick={() => goToPage(totalPages)}
-                disabled={currentPage === totalPages}
+                onClick={() => goToPage(paginationInfo.totalPages)}
+                disabled={currentPage === paginationInfo.totalPages}
                 className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
               >
                 Última »
