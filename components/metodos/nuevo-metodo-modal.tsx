@@ -36,7 +36,7 @@ export default function NuevoMetodoModal({ isOpen, onClose, onSave, metodo, empr
     let isValid = true
 
     if (!nombre.trim()) {
-      newErrors.nombre = "El nombre del método es requerido"
+      newErrors.nombre = "El nombre del metodo ya existe. Por favor, utilice otro nombre."
       isValid = false
     }
 

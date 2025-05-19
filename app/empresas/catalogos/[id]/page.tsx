@@ -87,6 +87,13 @@ export default function CatalogosEmpresaPage() {
       icono: "Bed",
       ruta: "/zona",
     },
+    {
+      id: 6,
+      nombre: "Materiales",
+      descripcion: "Gestión de materiales asociados a la empresa",
+      icono: "Package",
+      ruta: "/materiales",
+    },
   ]
 
   if (isLoading) {

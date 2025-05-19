@@ -1,8 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { Filter, Plus, Search } from "lucide-react"
-import type { Material } from "@/types/material"
+import { Filter, Plus, Search, AlertCircle } from "lucide-react"
+import type { Material, MaterialesResponse } from "@/types/material"
 import { MaterialService } from "@/services/material-service"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -10,54 +12,60 @@ import { useRouter } from "next/navigation"
 export default function MaterialesModule() {
   const router = useRouter()
   const [filtros, setFiltros] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchInputValue, setSearchInputValue] = useState("") // Valor del input
+  const [searchTerm, setSearchTerm] = useState("") // Término de búsqueda aplicado
   const [materiales, setMateriales] = useState<Material[]>([])
-  const [filteredMateriales, setFilteredMateriales] = useState<Material[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [paginationInfo, setPaginationInfo] = useState<MaterialesResponse["meta"] | null>(null)
+
+  // ID de configuración por defecto
+  const configuracionId = 9
 
   // Cargar materiales
   useEffect(() => {
     const fetchMateriales = async () => {
       try {
         setIsLoading(true)
-        const data = await MaterialService.getAll()
-        setMateriales(data)
+        setError(null)
+
+        // Preparar filtros para la API
+        const apiFilters: { estado?: number; nombre?: string } = {}
+
+        // Filtrar por estado
+        if (filtros.includes("1") && !filtros.includes("2")) {
+          apiFilters.estado = 1 // Activos
+        } else if (!filtros.includes("1") && filtros.includes("2")) {
+          apiFilters.estado = 0 // Inactivos
+        }
+
+        // Filtrar por término de búsqueda
+        if (searchTerm) {
+          apiFilters.nombre = searchTerm
+        }
+
+        const response = await MaterialService.getAll(configuracionId, currentPage, apiFilters)
+        setMateriales(response.data)
+
+        // Guardar los materiales en localStorage
+        localStorage.setItem("materiales", JSON.stringify(response.data))
+
+        setPaginationInfo(response.meta)
+        setTotalPages(response.meta.last_page)
+        setTotalItems(response.meta.total)
       } catch (error) {
         console.error("Error al cargar materiales:", error)
+        setError("No se pudieron cargar los materiales. Por favor, intente de nuevo más tarde.")
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchMateriales()
-  }, [])
-
-  // Filtrar materiales cuando cambian los filtros o el término de búsqueda
-  useEffect(() => {
-    let result = [...materiales]
-
-    // Aplicar filtro de búsqueda
-    if (searchTerm) {
-      result = result.filter(
-        (material) =>
-          material.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          material.descripcion.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    }
-
-    // Aplicar filtros de estado
-    if (filtros.includes("1")) {
-      result = result.filter((material) => material.estado === "Activa")
-    }
-
-    if (filtros.includes("2")) {
-      result = result.filter((material) => material.estado === "Inactiva")
-    }
-
-    setFilteredMateriales(result)
-  }, [searchTerm, filtros, materiales])
+  }, [currentPage, filtros, searchTerm]) // searchTerm en lugar de searchInputValue
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
@@ -65,20 +73,39 @@ export default function MaterialesModule() {
     } else {
       setFiltros([...filtros, filtro])
     }
+
+    // Reset to page 1 when changing filters
+    setCurrentPage(1)
   }
 
   const limpiarFiltros = () => {
     setFiltros([])
-    setSearchTerm("")
+    setSearchInputValue("") // Limpiar el input
+    setSearchTerm("") // Limpiar el término de búsqueda aplicado
+    setCurrentPage(1)
   }
 
+  // Actualizar el método handleToggleEstado para usar el método correcto
   const handleToggleEstado = async (id: number) => {
     try {
+      setError(null)
+
+      // Usar toggleEstado para ambos casos (activar y desactivar)
       await MaterialService.toggleEstado(id)
-      const updatedMateriales = await MaterialService.getAll()
-      setMateriales(updatedMateriales)
+
+      // Recargar los materiales para reflejar el cambio
+      const response = await MaterialService.getAll(configuracionId, currentPage)
+      setMateriales(response.data)
+
+      // Actualizar localStorage después de cambiar el estado
+      localStorage.setItem("materiales", JSON.stringify(response.data))
+
+      setPaginationInfo(response.meta)
+      setTotalPages(response.meta.last_page)
+      setTotalItems(response.meta.total)
     } catch (error) {
       console.error("Error al cambiar estado:", error)
+      setError("No se pudo cambiar el estado del material. Por favor, intente de nuevo más tarde.")
     }
   }
 
@@ -86,16 +113,22 @@ export default function MaterialesModule() {
     router.push(`/materiales/editar/${id}`)
   }
 
-  // Paginación
-  const totalPages = Math.ceil(filteredMateriales.length / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredMateriales.slice(indexOfFirstItem, indexOfLastItem)
-
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
       setCurrentPage(page)
     }
+  }
+
+  // Maneja cambios en el input de búsqueda (solo actualiza el valor del input)
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchInputValue(e.target.value)
+  }
+
+  // Función para aplicar la búsqueda cuando se presiona Enter
+  const handleSubmitSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSearchTerm(searchInputValue) // Actualiza el término de búsqueda real
+    setCurrentPage(1) // Reset a la primera página
   }
 
   if (isLoading) {
@@ -116,11 +149,18 @@ export default function MaterialesModule() {
         <p className="text-sm sm:text-base text-gray-600">Administra los materiales con los que trabaja CIDSON.</p>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-start">
+          <AlertCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{filteredMateriales.length}</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{totalItems}</span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
           </div>
 
@@ -128,16 +168,19 @@ export default function MaterialesModule() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <div className="relative w-full sm:w-56">
+              <form onSubmit={handleSubmitSearch} className="relative w-full sm:w-56">
                 <input
                   type="text"
-                  placeholder="Buscar material..."
+                  placeholder="Buscar material... (Enter para buscar)"
                   className="pl-9 bg-gray-50 border border-gray-200 rounded-md w-full p-2 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={searchInputValue}
+                  onChange={handleSearchInputChange}
                 />
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              </div>
+                <button type="submit" className="sr-only">
+                  Buscar
+                </button>
+              </form>
 
               <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 <button
@@ -215,24 +258,22 @@ export default function MaterialesModule() {
             <thead>
               <tr className="bg-[#f4f6fb]">
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre Del Material</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Descripción</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((material) => (
+              {materiales.map((material) => (
                 <tr key={material.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{material.nombre}</td>
-                  <td className="py-3 px-4 text-gray-800">{material.descripcion}</td>
                   <td className="py-3 px-4">
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          material.estado === "Activa" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          material.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {material.estado}
+                        {material.estado ? "Activa" : "Inactiva"}
                       </span>
                     </div>
                   </td>
@@ -256,9 +297,9 @@ export default function MaterialesModule() {
                       <button
                         onClick={() => handleToggleEstado(material.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
-                        aria-label={material.estado === "Activa" ? "Desactivar" : "Activar"}
+                        aria-label={material.estado ? "Desactivar" : "Activar"}
                       >
-                        {material.estado === "Activa" ? (
+                        {material.estado ? (
                           <svg
                             width="16"
                             height="16"
@@ -294,7 +335,7 @@ export default function MaterialesModule() {
           </table>
         </div>
 
-        {filteredMateriales.length === 0 && (
+        {materiales.length === 0 && !error && (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No se encontraron materiales con los filtros aplicados</p>
             <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
@@ -303,8 +344,8 @@ export default function MaterialesModule() {
           </div>
         )}
 
-        {/* Paginación */}
-        {filteredMateriales.length > 0 && (
+        {/* Paginación con datos de la API */}
+        {materiales.length > 0 && paginationInfo && (
           <div className="flex justify-center py-4 border-t border-gray-100">
             <div className="flex items-center space-x-1">
               <button
@@ -322,20 +363,19 @@ export default function MaterialesModule() {
                 ‹ Anterior
               </button>
 
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1
-                return (
+              {paginationInfo.links
+                .filter((link) => !isNaN(Number(link.label)))
+                .map((link, index) => (
                   <button
-                    key={pageNum}
-                    onClick={() => goToPage(pageNum)}
+                    key={index}
+                    onClick={() => goToPage(Number(link.label))}
                     className={`px-3 py-1 text-sm rounded-md ${
-                      currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
+                      link.active ? "bg-[#303e65] text-white" : "text-gray-500"
                     }`}
                   >
-                    {pageNum}
+                    {link.label}
                   </button>
-                )
-              })}
+                ))}
 
               <button
                 onClick={() => goToPage(currentPage + 1)}

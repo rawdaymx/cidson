@@ -1,127 +1,176 @@
-import type { Material } from "@/types/material"
+import type { Material, MaterialesResponse } from "@/types/material"
 
 export class MaterialService {
-  private static materiales: Material[] = [
-    {
-      id: 1,
-      nombre: "Detergente industrial",
-      descripcion: "Detergente de alta potencia para limpieza industrial",
-      estado: "Activa",
-      fechaCreacion: "01/01/2023",
-    },
-    {
-      id: 2,
-      nombre: "Desinfectante multiusos",
-      descripcion: "Desinfectante para todo tipo de superficies",
-      estado: "Activa",
-      fechaCreacion: "15/01/2023",
-    },
-    {
-      id: 3,
-      nombre: "Limpiador de vidrios",
-      descripcion: "Producto especializado para limpieza de cristales y espejos",
-      estado: "Activa",
-      fechaCreacion: "20/01/2023",
-    },
-    {
-      id: 4,
-      nombre: "Cera para pisos",
-      descripcion: "Cera protectora y abrillantadora para pisos",
-      estado: "Activa",
-      fechaCreacion: "25/01/2023",
-    },
-    {
-      id: 5,
-      nombre: "Jabón líquido",
-      descripcion: "Jabón líquido para manos con propiedades antibacteriales",
-      estado: "Activa",
-      fechaCreacion: "01/02/2023",
-    },
-    {
-      id: 6,
-      nombre: "Limpiador de acero inoxidable",
-      descripcion: "Producto especializado para superficies de acero inoxidable",
-      estado: "Inactiva",
-      fechaCreacion: "05/02/2023",
-    },
-    {
-      id: 7,
-      nombre: "Removedor de manchas",
-      descripcion: "Producto para eliminar manchas difíciles en textiles",
-      estado: "Inactiva",
-      fechaCreacion: "10/02/2023",
-    },
-    {
-      id: 8,
-      nombre: "Limpiador de alfombras",
-      descripcion: "Producto para limpieza profunda de alfombras",
-      estado: "Inactiva",
-      fechaCreacion: "15/02/2023",
-    },
-    {
-      id: 9,
-      nombre: "Desengrasante industrial",
-      descripcion: "Desengrasante potente para uso industrial",
-      estado: "Inactiva",
-      fechaCreacion: "20/02/2023",
-    },
-    {
-      id: 10,
-      nombre: "Limpiador de baños",
-      descripcion: "Producto especializado para limpieza de sanitarios",
-      estado: "Inactiva",
-      fechaCreacion: "25/02/2023",
-    },
-  ]
+  private static API_URL = "https://cidson.int.qaenv.dev/api"
+  private static TOKEN = "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 
-  static getAll(): Promise<Material[]> {
-    return Promise.resolve([...this.materiales])
-  }
+  static async getAll(
+    configuracionId = 9,
+    page = 1,
+    filters: { estado?: number; nombre?: string } = {},
+  ): Promise<MaterialesResponse> {
+    try {
+      // Construir la URL base
+      let url = `${this.API_URL}/materiales/${configuracionId}?page=${page}`
 
-  static getById(id: number): Promise<Material | undefined> {
-    const material = this.materiales.find((m) => m.id === id)
-    return Promise.resolve(material)
-  }
+      // Añadir filtros si se proporcionan
+      if (filters.estado !== undefined) {
+        url += `&estado=${filters.estado}`
+      }
 
-  static create(material: Omit<Material, "id">): Promise<Material> {
-    const newId = Math.max(...this.materiales.map((m) => m.id)) + 1
-    const newMaterial = { ...material, id: newId }
-    this.materiales.push(newMaterial)
-    return Promise.resolve(newMaterial)
-  }
+      if (filters.nombre) {
+        url += `&nombre=${encodeURIComponent(filters.nombre)}`
+      }
 
-  static update(id: number, material: Partial<Material>): Promise<Material | undefined> {
-    const index = this.materiales.findIndex((m) => m.id === id)
-    if (index === -1) {
-      return Promise.resolve(undefined)
+      // Realizar la solicitud
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.TOKEN}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al obtener materiales: ${response.status}`)
+      }
+
+      const data: MaterialesResponse = await response.json()
+      return data
+    } catch (error) {
+      console.error("Error al obtener materiales:", error)
+      throw error
     }
-
-    const updatedMaterial = { ...this.materiales[index], ...material }
-    this.materiales[index] = updatedMaterial
-    return Promise.resolve(updatedMaterial)
   }
 
-  static toggleEstado(id: number): Promise<Material | undefined> {
-    const index = this.materiales.findIndex((m) => m.id === id)
-    if (index === -1) {
-      return Promise.resolve(undefined)
+  static async getById(id: number): Promise<Material | undefined> {
+    try {
+      const url = `${this.API_URL}/materiales/detalle/${id}`
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.TOKEN}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al obtener material: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.data
+    } catch (error) {
+      console.error("Error al obtener material:", error)
+      throw error
     }
-
-    const material = this.materiales[index]
-    const nuevoEstado = material.estado === "Activa" ? "Inactiva" : "Activa"
-
-    const updatedMaterial = { ...material, estado: nuevoEstado }
-    this.materiales[index] = updatedMaterial
-    return Promise.resolve(updatedMaterial)
   }
 
-  static delete(id: number): Promise<boolean> {
-    const index = this.materiales.findIndex((m) => m.id === id)
-    if (index === -1) {
-      return Promise.resolve(false)
-    }
+  static async create(material: Omit<Material, "id">, configuracionId = 9): Promise<Material> {
+    try {
+      const url = `${this.API_URL}/materiales/store/${configuracionId}`
 
-    this.materiales.splice(index, 1)
-    return Promise.resolve(true)
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.TOKEN}`,
+        },
+        body: JSON.stringify({
+          nombre: material.nombre,
+          descripcion: material.descripcion || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al crear material: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.data
+    } catch (error) {
+      console.error("Error al crear material:", error)
+      throw error
+    }
+  }
+
+  static async update(id: number, material: Partial<Material>): Promise<Material | undefined> {
+    try {
+      // Actualizar la URL para usar el endpoint correcto
+      const url = `${this.API_URL}/materiales/update/${id}`
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.TOKEN}`,
+        },
+        body: JSON.stringify(material),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al actualizar material: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.data
+    } catch (error) {
+      console.error("Error al actualizar material:", error)
+      throw error
+    }
+  }
+
+  // Modificar el método toggleEstado para usar el endpoint destroy tanto para activar como para desactivar
+  static async toggleEstado(id: number): Promise<Material | undefined> {
+    try {
+      // Usar el mismo endpoint que delete pero con método DELETE
+      const url = `${this.API_URL}/materiales/destroy/${id}`
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.TOKEN}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al cambiar estado del material: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.data
+    } catch (error) {
+      console.error("Error al cambiar estado del material:", error)
+      throw error
+    }
+  }
+
+  static async delete(id: number): Promise<Material | undefined> {
+    try {
+      // Actualizado a usar el endpoint destroy
+      const url = `${this.API_URL}/materiales/destroy/${id}`
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.TOKEN}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al eliminar/desactivar material: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.data
+    } catch (error) {
+      console.error("Error al eliminar/desactivar material:", error)
+      throw error
+    }
   }
 }

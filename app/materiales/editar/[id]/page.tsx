@@ -15,13 +15,9 @@ export default function EditarMaterialPage() {
 
   const [formData, setFormData] = useState({
     nombre: "",
-    descripcion: "",
-    estado: "Activa" as "Activa" | "Inactiva",
   })
   const [errors, setErrors] = useState({
     nombre: "",
-    descripcion: "",
-    estado: "",
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -30,15 +26,24 @@ export default function EditarMaterialPage() {
     const fetchMaterial = async () => {
       try {
         setIsLoading(true)
-        const material = await MaterialService.getById(id)
 
-        if (material) {
-          setFormData({
-            nombre: material.nombre,
-            descripcion: material.descripcion,
-            estado: material.estado,
-          })
+        // Obtener los materiales desde localStorage
+        const materialesString = localStorage.getItem("materiales")
+
+        if (materialesString) {
+          const materiales = JSON.parse(materialesString)
+          const material = materiales.find((m: any) => m.id === id)
+
+          if (material) {
+            setFormData({
+              nombre: material.nombre || "",
+            })
+          } else {
+            // Si no se encuentra el material en localStorage, redirigir a la lista
+            router.push("/materiales")
+          }
         } else {
+          // Si no hay materiales en localStorage, redirigir a la lista
           router.push("/materiales")
         }
       } catch (error) {
@@ -53,7 +58,7 @@ export default function EditarMaterialPage() {
     }
   }, [id, router])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData({
       ...formData,
@@ -73,22 +78,10 @@ export default function EditarMaterialPage() {
     let isValid = true
     const newErrors = {
       nombre: "",
-      descripcion: "",
-      estado: "",
     }
 
     if (!formData.nombre.trim()) {
       newErrors.nombre = "El nombre del material es requerido"
-      isValid = false
-    }
-
-    if (!formData.descripcion.trim()) {
-      newErrors.descripcion = "La descripción del material es requerida"
-      isValid = false
-    }
-
-    if (!formData.estado) {
-      newErrors.estado = "El estado es requerido"
       isValid = false
     }
 
@@ -106,16 +99,10 @@ export default function EditarMaterialPage() {
     try {
       setIsSubmitting(true)
 
-      const material = await MaterialService.getById(id)
-
-      if (material) {
-        await MaterialService.update(id, {
-          ...material,
-          nombre: formData.nombre.trim(),
-          descripcion: formData.descripcion.trim(),
-          estado: formData.estado,
-        })
-      }
+      // Enviar solo el nombre según la API
+      await MaterialService.update(id, {
+        nombre: formData.nombre.trim(),
+      })
 
       // Redirigir a la lista de materiales
       router.push("/materiales")
@@ -123,7 +110,7 @@ export default function EditarMaterialPage() {
       console.error("Error al actualizar el material:", error)
       setErrors({
         ...errors,
-        nombre: "Ocurrió un error al actualizar el material. Por favor, intente nuevamente.",
+        nombre: "El nombre del material ya existe. Por favor, utilice otro nombre.",
       })
     } finally {
       setIsSubmitting(false)
@@ -150,7 +137,7 @@ export default function EditarMaterialPage() {
         </Link>
 
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Editar registro</h1>
-        <p className="text-gray-600 mb-8">Edita el material seleccionado.</p>
+        <p className="text-gray-600 mb-8">Edita el nombre del material seleccionado.</p>
 
         <div className="bg-white rounded-xl p-8 shadow-sm max-w-[800px] mx-auto">
           <form onSubmit={handleSubmit}>
@@ -168,55 +155,6 @@ export default function EditarMaterialPage() {
                   }`}
                 />
                 {errors.nombre && <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>}
-              </div>
-
-              <div>
-                <textarea
-                  id="descripcion"
-                  name="descripcion"
-                  placeholder="Descripción Del Material"
-                  value={formData.descripcion}
-                  onChange={handleChange}
-                  rows={4}
-                  className={`w-full px-4 py-3 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
-                    errors.descripcion ? "ring-2 ring-red-500" : ""
-                  }`}
-                />
-                {errors.descripcion && <p className="mt-1 text-sm text-red-500">{errors.descripcion}</p>}
-              </div>
-
-              <div className="relative">
-                <select
-                  id="estado"
-                  name="estado"
-                  value={formData.estado}
-                  onChange={handleChange}
-                  className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 appearance-none focus:ring-2 focus:ring-[#303e65] ${
-                    errors.estado ? "ring-2 ring-red-500" : ""
-                  }`}
-                >
-                  <option value="Estado" disabled>
-                    Estado
-                  </option>
-                  <option value="Activa">Activa</option>
-                  <option value="Inactiva">Inactiva</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                {errors.estado && <p className="mt-1 text-sm text-red-500">{errors.estado}</p>}
               </div>
             </div>
 

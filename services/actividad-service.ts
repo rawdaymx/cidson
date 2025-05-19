@@ -126,6 +126,7 @@ export class ActividadService {
     }
   }
 
+  // En el método create, modificar el bloque catch para manejar específicamente el error de nombre duplicado
   static async create(configuracionId: number, nombre: string): Promise<Actividad | undefined> {
     try {
       console.log(`Creando actividad para configuración ${configuracionId} con nombre: ${nombre}`)
@@ -148,6 +149,19 @@ export class ActividadService {
       if (!response.ok) {
         const errorText = await response.text()
         console.error("Error response:", errorText)
+
+        // Verificar si es un error de nombre duplicado
+        if (response.status === 422) {
+          try {
+            const errorData = JSON.parse(errorText)
+            if (errorData.errors?.nombre?.includes("The nombre has already been taken.")) {
+              throw new Error("NOMBRE_DUPLICADO")
+            }
+          } catch (parseError) {
+            // Si hay un error al parsear, continuar con el error original
+          }
+        }
+
         throw new Error(`Error al crear actividad: ${response.status} - ${errorText}`)
       }
 
@@ -156,7 +170,7 @@ export class ActividadService {
       return data.data
     } catch (error) {
       console.error("Error en ActividadService.create:", error)
-      return undefined
+      throw error // Re-lanzar el error para manejarlo en el componente
     }
   }
 

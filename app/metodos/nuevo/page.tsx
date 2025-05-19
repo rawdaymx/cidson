@@ -46,7 +46,7 @@ export default function NuevoMetodoPage() {
     }
 
     if (!formData.nombre.trim()) {
-      newErrors.nombre = "El nombre del método es requerido"
+      newErrors.nombre = "El nombre del metodo ya existe. Por favor, utilice otro nombre."
       isValid = false
     }
 
@@ -80,7 +80,7 @@ export default function NuevoMetodoPage() {
       console.error("Error al crear el método:", error)
       setErrors({
         ...errors,
-        nombre: "Ocurrió un error al crear el método. Por favor, intente nuevamente.",
+        nombre: "El nombre del metodo ya existe. Por favor, utilice otro nombre.",
       })
     } finally {
       setIsSubmitting(false)

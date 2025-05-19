@@ -15,13 +15,13 @@ export default function MetodosModule() {
   const [searchInputValue, setSearchInputValue] = useState("") // Valor del input
   const [searchTerm, setSearchTerm] = useState("") // Término de búsqueda aplicado
   const [metodos, setMetodos] = useState<Metodo[]>([])
-  const [filteredMetodos, setFilteredMetodos] = useState<Metodo[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [metaData, setMetaData] = useState<MetodoResponse["meta"] | null>(null)
   const [links, setLinks] = useState<MetodoResponse["links"] | null>(null)
+  const [estadoFiltro, setEstadoFiltro] = useState<number | undefined>(undefined)
 
   // Cargar métodos
   useEffect(() => {
@@ -33,18 +33,16 @@ export default function MetodosModule() {
         if (!empresaId) {
           console.log("No se proporcionó empresaId, no se pueden cargar métodos")
           setMetodos([])
-          setFilteredMetodos([])
           setIsLoading(false)
           return
         }
 
-        // Cargar los métodos con el servicio actualizado
-        const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm)
+        // Cargar los métodos con el servicio actualizado, pasando el filtro de estado
+        const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm, estadoFiltro)
         console.log("Respuesta de API:", response)
 
         if (response && response.data) {
           setMetodos(response.data)
-          setFilteredMetodos(response.data)
 
           if (response.meta) {
             setMetaData(response.meta)
@@ -58,36 +56,36 @@ export default function MetodosModule() {
           console.error("Respuesta de API inválida:", response)
           setError("La respuesta de la API no tiene el formato esperado")
           setMetodos([])
-          setFilteredMetodos([])
         }
       } catch (error) {
         console.error("Error al cargar métodos:", error)
         setError("Error al cargar los métodos. Por favor, intente nuevamente.")
         setMetodos([])
-        setFilteredMetodos([])
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchMetodos()
-  }, [empresaId, currentPage, searchTerm])
+  }, [empresaId, currentPage, searchTerm, estadoFiltro])
 
-  // Filtrar métodos localmente por estado
+  // Actualizar el filtro de estado cuando cambian los filtros seleccionados
   useEffect(() => {
-    let result = [...metodos]
-
-    // Aplicar filtros de estado
-    if (filtros.includes("1")) {
-      result = result.filter((metodo) => metodo.estado === true)
+    // Determinar el valor del filtro de estado basado en los filtros seleccionados
+    if (filtros.includes("1") && !filtros.includes("2")) {
+      // Solo activos
+      setEstadoFiltro(1)
+    } else if (!filtros.includes("1") && filtros.includes("2")) {
+      // Solo inactivos
+      setEstadoFiltro(0)
+    } else {
+      // Ambos o ninguno (mostrar todos)
+      setEstadoFiltro(undefined)
     }
 
-    if (filtros.includes("2")) {
-      result = result.filter((metodo) => metodo.estado === false)
-    }
-
-    setFilteredMetodos(result)
-  }, [filtros, metodos])
+    // Resetear a la primera página cuando cambian los filtros
+    setCurrentPage(1)
+  }, [filtros])
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
@@ -101,13 +99,14 @@ export default function MetodosModule() {
     setFiltros([])
     setSearchInputValue("")
     setSearchTerm("")
+    setEstadoFiltro(undefined)
   }
 
   const handleToggleEstado = async (id: number) => {
     try {
       await MetodoService.toggleEstado(id)
-      // Recargar la página actual
-      const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm)
+      // Recargar la página actual después de cambiar el estado
+      const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm, estadoFiltro)
       if (response && response.data) {
         setMetodos(response.data)
       }
@@ -117,8 +116,18 @@ export default function MetodosModule() {
     }
   }
 
-  const handleEditMetodo = (id: number) => {
-    router.push(`/metodos/editar/${id}${empresaId ? `?empresaId=${empresaId}` : ""}`)
+  const handleEditMetodo = (metodo: Metodo) => {
+    // Codificar los datos del método como parámetros de URL
+    const metodoData = encodeURIComponent(
+      JSON.stringify({
+        id: metodo.id,
+        nombre: metodo.nombre,
+        descripcion: metodo.descripcion,
+        estado: metodo.estado,
+      }),
+    )
+
+    router.push(`/metodos/editar/${metodo.id}?empresaId=${empresaId || ""}&data=${metodoData}`)
   }
 
   // Manejar la búsqueda cuando se presiona Enter
@@ -180,7 +189,7 @@ export default function MetodosModule() {
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
             <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
-              {metaData ? metaData.total : filteredMetodos.length}
+              {metaData ? metaData.total : metodos.length}
             </span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
           </div>
@@ -283,7 +292,7 @@ export default function MetodosModule() {
               </tr>
             </thead>
             <tbody>
-              {filteredMetodos.map((metodo) => (
+              {metodos.map((metodo) => (
                 <tr key={metodo.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{metodo.nombre}</td>
                   <td className="py-3 px-4 text-gray-800">{metodo.descripcion}</td>
@@ -302,7 +311,7 @@ export default function MetodosModule() {
                     <div className="flex justify-center space-x-4">
                       {/* Botón de editar */}
                       <button
-                        onClick={() => handleEditMetodo(metodo.id)}
+                        onClick={() => handleEditMetodo(metodo)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
                         aria-label="Editar"
                       >
@@ -356,7 +365,7 @@ export default function MetodosModule() {
           </table>
         </div>
 
-        {filteredMetodos.length === 0 && (
+        {metodos.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">No se encontraron métodos con los filtros aplicados</p>
             <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>

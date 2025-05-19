@@ -1,7 +1,7 @@
 /**
  * Determina la URL base de la API según el entorno actual
  */
-const getBaseUrl = (): string => {
+export const getBaseUrl = (): string => {
   const env = process.env.NEXT_PUBLIC_ENV || "development"
 
   switch (env) {
@@ -14,6 +14,21 @@ const getBaseUrl = (): string => {
       // En desarrollo, usamos la URL de pruebas por defecto si no hay una URL específica configurada
       return process.env.NEXT_PUBLIC_API_URL_DEVELOPMENT || "https://cidson.int.qaenv.dev"
   }
+}
+
+/**
+ * Obtiene la URL base de la API
+ */
+export const getApiUrl = (): string => {
+  return getBaseUrl()
+}
+
+/**
+ * Obtiene el token de autenticación
+ */
+export const getAuthToken = (): string => {
+  // Por ahora, devolvemos el token hardcodeado para pruebas
+  return "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 }
 
 /**

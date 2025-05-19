@@ -15,11 +15,9 @@ interface NuevoMaterialModalProps {
 export default function NuevoMaterialModal({ isOpen, onClose, onSave, material }: NuevoMaterialModalProps) {
   const [formData, setFormData] = useState({
     nombre: "",
-    descripcion: "",
   })
   const [errors, setErrors] = useState({
     nombre: "",
-    descripcion: "",
   })
 
   // Cargar datos del material si estamos en modo edición
@@ -27,17 +25,14 @@ export default function NuevoMaterialModal({ isOpen, onClose, onSave, material }
     if (material) {
       setFormData({
         nombre: material.nombre,
-        descripcion: material.descripcion,
       })
     } else {
       setFormData({
         nombre: "",
-        descripcion: "",
       })
     }
     setErrors({
       nombre: "",
-      descripcion: "",
     })
   }, [material, isOpen])
 
@@ -61,16 +56,10 @@ export default function NuevoMaterialModal({ isOpen, onClose, onSave, material }
     let isValid = true
     const newErrors = {
       nombre: "",
-      descripcion: "",
     }
 
     if (!formData.nombre.trim()) {
       newErrors.nombre = "El nombre del material es requerido"
-      isValid = false
-    }
-
-    if (!formData.descripcion.trim()) {
-      newErrors.descripcion = "La descripción del material es requerida"
       isValid = false
     }
 
@@ -85,36 +74,36 @@ export default function NuevoMaterialModal({ isOpen, onClose, onSave, material }
       return
     }
 
-    // Si estamos editando, mantener el id, la fecha de registro y el estado original
-    if (material) {
-      onSave({
-        id: material.id,
-        nombre: formData.nombre.trim(),
-        descripcion: formData.descripcion.trim(),
-        estado: material.estado,
-        fechaCreacion: material.fechaCreacion,
-      })
-    } else {
-      // Obtener la fecha actual en formato dd/mm/aaaa para nuevos materiales
-      const today = new Date()
-      const day = String(today.getDate()).padStart(2, "0")
-      const month = String(today.getMonth() + 1).padStart(2, "0")
-      const year = today.getFullYear()
-      const fechaCreacion = `${day}/${month}/${year}`
+    try {
+      // Si estamos editando, mantener el id, la fecha de registro y el estado original
+      if (material) {
+        onSave({
+          id: material.id,
+          nombre: formData.nombre.trim(),
+          estado: material.estado,
+          fecha_creacion: material.fechaCreacion,
+        })
+      } else {
+        // Para nuevos materiales, usamos la fecha actual
+        const fechaActual = new Date().toISOString().split("T")[0]
 
-      onSave({
-        nombre: formData.nombre.trim(),
-        descripcion: formData.descripcion.trim(),
-        estado: "Activa",
-        fechaCreacion,
+        onSave({
+          nombre: formData.nombre.trim(),
+          estado: true,
+          fecha_creacion: fechaActual,
+        })
+      }
+
+      // Limpiar formulario
+      setFormData({
+        nombre: "",
+      })
+    } catch (error) {
+      // Actualizar el mensaje de error en caso de que se implemente la validación en el modal también
+      setErrors({
+        nombre: "El nombre del material ya existe. Por favor, utilice otro nombre.",
       })
     }
-
-    // Limpiar formulario
-    setFormData({
-      nombre: "",
-      descripcion: "",
-    })
   }
 
   if (!isOpen) return null
@@ -147,24 +136,6 @@ export default function NuevoMaterialModal({ isOpen, onClose, onSave, material }
                 placeholder="Ingrese el nombre del material"
               />
               {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700">
-                Descripción
-              </label>
-              <textarea
-                id="descripcion"
-                name="descripcion"
-                value={formData.descripcion}
-                onChange={handleChange}
-                rows={3}
-                className={`w-full p-2 border ${
-                  errors.descripcion ? "border-red-500" : "border-gray-300"
-                } rounded-md focus:outline-none focus:ring-2 focus:ring-[#303e65]`}
-                placeholder="Ingrese la descripción del material"
-              />
-              {errors.descripcion && <p className="text-red-500 text-xs mt-1">{errors.descripcion}</p>}
             </div>
           </div>
 

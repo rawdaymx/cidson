@@ -26,6 +26,7 @@ export default function NuevaActividadPage() {
     }
   }, [configuracionIdParam, empresaId])
 
+  // Modificar el método handleSubmit para capturar y mostrar el error específico
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -61,7 +62,13 @@ export default function NuevaActividadPage() {
       }
     } catch (error) {
       console.error("Error al crear actividad:", error)
-      setError("Ocurrió un error al crear la actividad. Por favor, intente nuevamente.")
+
+      // Verificar si es el error específico de nombre duplicado
+      if (error instanceof Error && error.message === "NOMBRE_DUPLICADO") {
+        setError("El nombre de la actividad ya existe. Por favor, utilice otro nombre.")
+      } else {
+        setError("El nombre de la actividad ya existe. Por favor, utilice otro nombre.")
+      }
     } finally {
       setIsSubmitting(false)
     }

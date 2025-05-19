@@ -1,4 +1,4 @@
-import { FileText, Hand, Server, Bed } from "lucide-react"
+import { FileText, Hand, Server, Bed, Package } from "lucide-react"
 import Link from "next/link"
 
 interface CatalogoCardProps {
@@ -25,6 +25,8 @@ export default function CatalogoCard({ catalogo, empresaId, configuracionId }: C
         return <Server className="h-6 w-6" />
       case "Bed":
         return <Bed className="h-6 w-6" />
+      case "Package":
+        return <Package className="h-6 w-6" />
       default:
         return <FileText className="h-6 w-6" />
     }
