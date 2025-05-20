@@ -1,149 +1,209 @@
-import { API } from "@/config/api-config"
-
-interface RequestOptions extends RequestInit {
-  requiresAuth?: boolean
-}
+import { getAuthToken } from "@/config/api-config"
 
 export class HttpClient {
-  /**
-   * Realiza una petición HTTP a la API
-   * @param endpoint Endpoint de la API
-   * @param options Opciones de la petición
-   * @returns Respuesta de la API
-   */
-  static async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const url = `${API.BASE_URL}${endpoint}`
-    console.log("Realizando petición a:", url)
-
-    // Configuración por defecto
-    const defaultOptions: RequestOptions = {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      requiresAuth: true,
+  private static getHeaders(): HeadersInit {
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
     }
 
-    // Combinar opciones
-    const mergedOptions: RequestOptions = {
-      ...defaultOptions,
-      ...options,
-      headers: {
-        ...defaultOptions.headers,
-        ...options.headers,
-      },
+    const token = getAuthToken()
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
     }
 
-    // Agregar token de autenticación si es necesario
-    if (mergedOptions.requiresAuth) {
-      // Usar el token hardcodeado para pruebas
-      const token = "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
-      mergedOptions.headers = {
-        ...mergedOptions.headers,
-        Authorization: `Bearer ${token}`,
+    return headers
+  }
+
+  private static async handleResponse<T>(response: Response): Promise<T> {
+    // Verificar si la respuesta es exitosa (código 2xx)
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type") || ""
+
+      // Leer el cuerpo de la respuesta una sola vez
+      let responseBody: string
+      try {
+        responseBody = await response.text()
+      } catch (e) {
+        throw new Error(`Error HTTP: ${response.status}, ${response.statusText}`)
       }
-    }
 
-    try {
-      console.log("Opciones de la petición:", mergedOptions)
-      // Realizamos la solicitud directamente con la URL y las opciones
-      const response = await fetch(url, mergedOptions)
+      // Si la respuesta es HTML, extraer un mensaje más útil
+      if (contentType.includes("text/html")) {
+        console.error("Respuesta HTML recibida:", responseBody.substring(0, 200) + "...")
+        throw new Error(`El servidor devolvió HTML en lugar de JSON. Código: ${response.status}`)
+      }
 
-      // Verificar si la respuesta es exitosa
-      if (!response.ok) {
-        // Si el error es 401 (No autorizado), cerrar sesión
-        if (response.status === 401) {
-          console.error("Error de autenticación (401)")
-          // AuthService.logout()
-          // window.location.href = "/login"
-        }
-
-        // Intentar obtener el mensaje de error
-        let errorMessage = `Error en la petición: ${response.status} ${response.statusText}`
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.message || errorMessage
-        } catch {
-          // Si no se puede parsear como JSON, usar el statusText
-          errorMessage = response.statusText || errorMessage
-        }
-
+      // Intentar parsear como JSON
+      try {
+        const errorData = JSON.parse(responseBody)
+        const errorMessage = errorData.message || errorData.error || `Error HTTP: ${response.status}`
         throw new Error(errorMessage)
+      } catch (e) {
+        // Si no se puede parsear como JSON, usar el texto
+        throw new Error(`Error HTTP: ${response.status}, ${responseBody || response.statusText}`)
+      }
+    }
+
+    // Verificar si la respuesta está vacía
+    const contentLength = response.headers.get("content-length")
+    if (contentLength === "0") {
+      return {} as T
+    }
+
+    // Verificar el tipo de contenido
+    const contentType = response.headers.get("content-type") || ""
+
+    // Leer el cuerpo de la respuesta una sola vez
+    let responseBody: string
+    try {
+      responseBody = await response.text()
+    } catch (e) {
+      throw new Error("Error al leer la respuesta del servidor")
+    }
+
+    if (!contentType.includes("application/json")) {
+      console.warn(`Respuesta no es JSON: ${contentType}`)
+
+      // Si parece HTML, lanzar un error específico
+      if (responseBody.trim().startsWith("<!DOCTYPE") || responseBody.trim().startsWith("<html")) {
+        console.error("Respuesta HTML recibida:", responseBody.substring(0, 200) + "...")
+        throw new Error("El servidor devolvió HTML en lugar de JSON")
       }
 
-      // Verificar si la respuesta es JSON o texto
-      const contentType = response.headers.get("content-type")
-      if (contentType && contentType.includes("application/json")) {
-        const jsonResponse = await response.json()
-        console.log("Respuesta JSON:", jsonResponse)
-        return jsonResponse
-      } else {
-        const text = await response.text()
-        console.log("Respuesta texto:", text)
-        try {
-          // Intentar parsear como JSON por si acaso
-          return JSON.parse(text)
-        } catch {
-          // Si no es JSON, devolver el texto
-          return text as unknown as T
-        }
+      // Intentar parsear como JSON de todos modos
+      try {
+        return JSON.parse(responseBody) as T
+      } catch (e) {
+        console.error("No se pudo parsear la respuesta como JSON:", responseBody.substring(0, 200) + "...")
+        throw new Error("Respuesta no válida: no es JSON")
       }
+    }
+
+    // Parsear la respuesta como JSON
+    try {
+      return JSON.parse(responseBody) as T
+    } catch (e) {
+      console.error("Error al parsear JSON:", e)
+      console.error("Contenido de la respuesta:", responseBody.substring(0, 200) + "...")
+      throw new Error("Error al parsear la respuesta JSON")
+    }
+  }
+
+  static async get<T>(url: string, params = {}): Promise<T> {
+    try {
+      // Asegurarse de que la URL sea absoluta
+      const fullUrl = this.ensureAbsoluteUrl(url)
+
+      const queryParams = new URLSearchParams()
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, String(value))
+        }
+      })
+
+      const queryString = queryParams.toString()
+      const requestUrl = queryString ? `${fullUrl}?${queryString}` : fullUrl
+
+      console.log("GET:", requestUrl)
+      console.log("Headers:", this.getHeaders())
+
+      const response = await fetch(requestUrl, {
+        method: "GET",
+        headers: this.getHeaders(),
+        mode: "cors",
+        credentials: "same-origin",
+      })
+
+      return await this.handleResponse<T>(response)
     } catch (error) {
-      console.error("Error en la petición HTTP:", error)
+      console.error(`Error en solicitud GET a ${url}:`, error)
       throw error
     }
   }
 
-  /**
-   * Realiza una petición GET
-   * @param endpoint Endpoint de la API
-   * @param options Opciones de la petición
-   * @returns Respuesta de la API
-   */
-  static async get<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: "GET" })
+  static async post<T>(url: string, data: any): Promise<T> {
+    try {
+      // Asegurarse de que la URL sea absoluta
+      const fullUrl = this.ensureAbsoluteUrl(url)
+
+      console.log("POST:", fullUrl)
+      console.log("Datos:", data)
+
+      const response = await fetch(fullUrl, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+        mode: "cors",
+        credentials: "same-origin",
+      })
+
+      return await this.handleResponse<T>(response)
+    } catch (error) {
+      console.error(`Error en solicitud POST a ${url}:`, error)
+      throw error
+    }
   }
 
-  /**
-   * Realiza una petición POST
-   * @param endpoint Endpoint de la API
-   * @param data Datos a enviar
-   * @param options Opciones de la petición
-   * @returns Respuesta de la API
-   */
-  static async post<T>(endpoint: string, data: any, options: RequestOptions = {}): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...options,
-      method: "POST",
-      body: JSON.stringify(data),
-    })
+  static async put<T>(url: string, data: any): Promise<T> {
+    try {
+      // Asegurarse de que la URL sea absoluta
+      const fullUrl = this.ensureAbsoluteUrl(url)
+
+      console.log("PUT:", fullUrl)
+      console.log("Datos:", data)
+
+      const response = await fetch(fullUrl, {
+        method: "PUT",
+        headers: this.getHeaders(),
+        body: JSON.stringify(data),
+        mode: "cors",
+        credentials: "same-origin",
+      })
+
+      return await this.handleResponse<T>(response)
+    } catch (error) {
+      console.error(`Error en solicitud PUT a ${url}:`, error)
+      throw error
+    }
   }
 
-  /**
-   * Realiza una petición PUT
-   * @param endpoint Endpoint de la API
-   * @param data Datos a enviar
-   * @param options Opciones de la petición
-   * @returns Respuesta de la API
-   */
-  static async put<T>(endpoint: string, data: any, options: RequestOptions = {}): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...options,
-      method: "PUT",
-      body: JSON.stringify(data),
-    })
+  static async delete<T = void>(url: string): Promise<T> {
+    try {
+      // Asegurarse de que la URL sea absoluta
+      const fullUrl = this.ensureAbsoluteUrl(url)
+
+      console.log("DELETE:", fullUrl)
+
+      const response = await fetch(fullUrl, {
+        method: "DELETE",
+        headers: this.getHeaders(),
+        mode: "cors",
+        credentials: "same-origin",
+      })
+
+      return await this.handleResponse<T>(response)
+    } catch (error) {
+      console.error(`Error en solicitud DELETE a ${url}:`, error)
+      throw error
+    }
   }
 
-  /**
-   * Realiza una petición DELETE
-   * @param endpoint Endpoint de la API
-   * @param options Opciones de la petición
-   * @returns Respuesta de la API
-   */
-  static async delete<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: "DELETE" })
+  // Asegura que la URL sea absoluta
+  private static ensureAbsoluteUrl(url: string): string {
+    try {
+      // Si la URL ya es absoluta, devolverla tal cual
+      new URL(url)
+      return url
+    } catch (e) {
+      // Si la URL es relativa, construir la URL absoluta
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://cidson.int.qaenv.dev"
+
+      // Eliminar barras diagonales duplicadas
+      const cleanBaseUrl = baseUrl.replace(/\/+$/, "")
+      const cleanPath = url.replace(/^\/+/, "")
+
+      return `${cleanBaseUrl}/${cleanPath}`
+    }
   }
 }
-
-// Exportamos una instancia del cliente HTTP para usar en los servicios
-export const httpClient = HttpClient

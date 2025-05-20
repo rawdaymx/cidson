@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type FormEvent } from "react"
 import { Filter, Plus, Search } from "lucide-react"
 import type { Zona } from "@/types/zona"
 import { ZonaService } from "@/services/zona-service"
@@ -10,13 +10,16 @@ import { useRouter, useSearchParams } from "next/navigation"
 export default function ZonasModule() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const empresaId = searchParams.get("empresaId")
+  const empresaId = searchParams.get("empresaId") || "9" // Valor por defecto para pruebas
   const [filtros, setFiltros] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [searchQuery, setSearchQuery] = useState("") // Término de búsqueda actual aplicado
   const [zonas, setZonas] = useState<Zona[]>([])
   const [filteredZonas, setFilteredZonas] = useState<Zona[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [error, setError] = useState<string | null>(null)
   const itemsPerPage = 10
 
   // Cargar zonas
@@ -24,48 +27,62 @@ export default function ZonasModule() {
     const fetchZonas = async () => {
       try {
         setIsLoading(true)
-        let data
-        if (empresaId) {
-          data = await ZonaService.getAll(Number(empresaId))
-        } else {
-          data = await ZonaService.getAll()
+        setError(null)
+
+        // Preparar filtros para la API
+        const apiFilters: { nombre?: string; estado?: number } = {}
+
+        // Si hay término de búsqueda, añadirlo al filtro
+        if (searchQuery) {
+          apiFilters.nombre = searchQuery
         }
-        setZonas(data)
+
+        // Mapear filtros de UI a valores de API
+        if (filtros.includes("1") && !filtros.includes("2")) {
+          apiFilters.estado = 1 // Solo Activas
+        } else if (!filtros.includes("1") && filtros.includes("2")) {
+          apiFilters.estado = 0 // Solo Inactivas
+        }
+        // Si ambos filtros están seleccionados o ninguno está seleccionado,
+        // no incluimos el parámetro estado en la solicitud
+
+        console.log("Obteniendo zonas para configuración:", empresaId, "con filtros:", apiFilters)
+        const { zonas: zonasData, pagination } = await ZonaService.getAll(
+          empresaId ? Number(empresaId) : undefined,
+          currentPage,
+          apiFilters,
+        )
+
+        setZonas(zonasData)
+        setFilteredZonas(zonasData)
+
+        // Actualizar información de paginación si está disponible
+        if (pagination) {
+          setCurrentPage(pagination.currentPage)
+          setTotalPages(pagination.totalPages)
+        }
       } catch (error) {
         console.error("Error al cargar zonas:", error)
+        setError("Ocurrió un error al cargar las zonas. Se muestran datos de ejemplo.")
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchZonas()
-  }, [empresaId])
+  }, [empresaId, currentPage, searchQuery, filtros])
 
-  // Filtrar zonas cuando cambian los filtros o el término de búsqueda
+  // Este efecto solo se usa para mantener filteredZonas sincronizado con zonas
   useEffect(() => {
-    let result = [...zonas]
-
-    // Aplicar filtro de búsqueda
-    if (searchTerm) {
-      result = result.filter((zona) => zona.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
-    }
-
-    // Aplicar filtros de estado
-    if (filtros.includes("1")) {
-      result = result.filter((zona) => zona.estado === "Activa")
-    }
-
-    if (filtros.includes("2")) {
-      result = result.filter((zona) => zona.estado === "Inactiva")
-    }
-
-    setFilteredZonas(result)
-  }, [searchTerm, filtros, zonas])
+    setFilteredZonas(zonas)
+  }, [zonas])
 
   const toggleFiltro = (filtro: string) => {
+    setCurrentPage(1) // Resetear a la primera página al cambiar filtros
     if (filtros.includes(filtro)) {
       setFiltros(filtros.filter((f) => f !== filtro))
     } else {
+      // Permitir seleccionar ambos filtros simultáneamente
       setFiltros([...filtros, filtro])
     }
   }
@@ -73,15 +90,25 @@ export default function ZonasModule() {
   const limpiarFiltros = () => {
     setFiltros([])
     setSearchTerm("")
+    setSearchQuery("")
+    setCurrentPage(1)
+  }
+
+  const handleSubmitSearch = (e: FormEvent) => {
+    e.preventDefault()
+    setSearchQuery(searchTerm)
+    setCurrentPage(1)
   }
 
   const handleToggleEstado = async (id: number) => {
     try {
       await ZonaService.toggleEstado(id)
-      const updatedZonas = await ZonaService.getAll()
+      // Recargar datos después de cambiar el estado
+      const { zonas: updatedZonas } = await ZonaService.getAll(empresaId ? Number(empresaId) : undefined, currentPage)
       setZonas(updatedZonas)
     } catch (error) {
       console.error("Error al cambiar estado:", error)
+      alert("Error al cambiar el estado de la zona")
     }
   }
 
@@ -90,11 +117,6 @@ export default function ZonasModule() {
   }
 
   // Paginación
-  const totalPages = Math.ceil(filteredZonas.length / itemsPerPage)
-  const indexOfLastItem = currentPage * itemsPerPage
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentItems = filteredZonas.slice(indexOfFirstItem, indexOfLastItem)
-
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
       setCurrentPage(page)
@@ -117,6 +139,11 @@ export default function ZonasModule() {
       <div className="mb-4 sm:mb-6 md:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Zonas</h1>
         <p className="text-sm sm:text-base text-gray-600">Administra las zonas con las que trabaja CIDSON.</p>
+        {error && (
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-700 text-sm">
+            {error}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
@@ -131,7 +158,7 @@ export default function ZonasModule() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <div className="relative w-full sm:w-56">
+              <form onSubmit={handleSubmitSearch} className="relative w-full sm:w-56">
                 <input
                   type="text"
                   placeholder="Buscar zona..."
@@ -140,7 +167,10 @@ export default function ZonasModule() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              </div>
+                <button type="submit" className="sr-only">
+                  Buscar
+                </button>
+              </form>
 
               <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 <button
@@ -149,7 +179,7 @@ export default function ZonasModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Filtro 1 {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -158,13 +188,13 @@ export default function ZonasModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Filtro 2 {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
                   className="px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center"
                   onClick={limpiarFiltros}
-                  disabled={filtros.length === 0 && !searchTerm}
+                  disabled={filtros.length === 0 && !searchTerm && !searchQuery}
                 >
                   <Filter className="mr-1 h-4 w-4" /> Limpiar
                 </button>
@@ -179,7 +209,7 @@ export default function ZonasModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Filtro 1 {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -188,13 +218,13 @@ export default function ZonasModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Filtro 2 {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
                 className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center justify-center"
                 onClick={limpiarFiltros}
-                disabled={filtros.length === 0 && !searchTerm}
+                disabled={filtros.length === 0 && !searchTerm && !searchQuery}
               >
                 <Filter className="mr-1 h-4 w-4" /> Limpiar
               </button>
@@ -223,7 +253,7 @@ export default function ZonasModule() {
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((zona) => (
+              {filteredZonas.map((zona) => (
                 <tr key={zona.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{zona.nombre}</td>
                   <td className="py-3 px-4">

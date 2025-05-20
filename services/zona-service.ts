@@ -1,4 +1,5 @@
 import type { Zona } from "@/types/zona"
+import { getApiUrl, getAuthToken } from "@/config/api-config"
 
 export class ZonaService {
   private static zonas: Zona[] = [
@@ -64,8 +65,95 @@ export class ZonaService {
     },
   ]
 
-  static getAll(): Promise<Zona[]> {
-    return Promise.resolve([...this.zonas])
+  static async getAll(
+    configuracionId?: number,
+    page = 1,
+    filters: { nombre?: string; estado?: number } = {},
+  ): Promise<{ zonas: Zona[]; pagination: any }> {
+    try {
+      if (!configuracionId) {
+        // Si no hay configuracionId, devolver datos mock
+        return {
+          zonas: [...this.zonas],
+          pagination: {
+            currentPage: 1,
+            totalPages: 1,
+            total: this.zonas.length,
+          },
+        }
+      }
+
+      // Obtener API URL y token de autenticación
+      const apiUrl = getApiUrl()
+      const token =
+        getAuthToken() || localStorage.getItem("token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
+
+      // Validar que tenemos una URL base válida
+      if (!apiUrl) {
+        console.error("URL de API no definida")
+        throw new Error("URL de API no definida")
+      }
+
+      // Construir URL con parámetros de consulta
+      let url = `${apiUrl}/api/zonas/${configuracionId}?page=${page}`
+
+      // Añadir filtros si existen
+      if (filters.nombre) {
+        url += `&nombre=${encodeURIComponent(filters.nombre)}`
+      }
+
+      if (filters.estado !== undefined) {
+        url += `&estado=${filters.estado}`
+      }
+
+      console.log("Fetching zonas from:", url)
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Error HTTP: ${response.status} - ${errorText}`)
+        throw new Error(`Error HTTP: ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      // Transformar los datos para mantener compatibilidad con la interfaz existente
+      const zonas = result.data.map((zona: any) => ({
+        id: zona.id,
+        nombre: zona.nombre,
+        estado: zona.estado ? "Activa" : "Inactiva",
+        fechaCreacion: zona.fecha_creacion,
+      }))
+
+      const pagination = {
+        currentPage: result.meta.current_page,
+        totalPages: result.meta.last_page,
+        total: result.meta.total,
+        links: result.meta.links,
+      }
+
+      return { zonas, pagination }
+    } catch (error) {
+      console.error("Error al obtener zonas:", error)
+
+      // En caso de error, devolver datos mock para evitar que la UI se rompa
+      console.warn("Usando datos mock debido a un error en la API")
+      return {
+        zonas: [...this.zonas],
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          total: this.zonas.length,
+        },
+      }
+    }
   }
 
   static getById(id: number): Promise<Zona | undefined> {

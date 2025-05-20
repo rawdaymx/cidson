@@ -20,14 +20,16 @@ export const getBaseUrl = (): string => {
  * Obtiene la URL base de la API
  */
 export const getApiUrl = (): string => {
-  return getBaseUrl()
+  // Aseguramos que la URL base termine sin barra diagonal
+  const baseUrl = getBaseUrl().replace(/\/$/, "")
+  return baseUrl
 }
 
 /**
  * Obtiene el token de autenticación
  */
 export const getAuthToken = (): string => {
-  // Por ahora, devolvemos el token hardcodeado para pruebas
+  // Token hardcodeado para pruebas
   return "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
 }
 

@@ -4,52 +4,25 @@ import { API } from "@/config/api-config"
 
 export class AreaService {
   // Método para obtener todas las áreas de una configuración (empresa) con paginación
-  static async getAll(
-    configuracionId?: number,
-    page = 1,
-    search = "",
-  ): Promise<{
-    areas: Area[]
-    pagination: {
-      currentPage: number
-      totalPages: number
-      totalItems: number
-      perPage: number
-    }
-  }> {
+  static async getAll(configuracionId?: number, page = 1, search = ""): Promise<Area[]> {
     try {
       if (!configuracionId) {
-        return {
-          areas: [],
-          pagination: {
-            currentPage: 1,
-            totalPages: 1,
-            totalItems: 0,
-            perPage: 10,
-          },
-        }
+        return []
       }
 
       // Construir URL con parámetros de paginación y búsqueda
-      let url = `${API.ENDPOINTS.AREAS}/${configuracionId}?page=${page}`
+      const url = `${API.ENDPOINTS.AREAS}/${configuracionId}`
+      const params: Record<string, any> = { page }
       if (search) {
-        url += `&search=${encodeURIComponent(search)}`
+        params.search = search
       }
 
-      const response = await HttpClient.request<AreaApiResponse>(url, {
-        method: "GET",
-      })
+      console.log(`Obteniendo áreas para configuración ${configuracionId}`)
+      const response = await HttpClient.get<AreaApiResponse>(url, params)
 
       if (!response || !response.data) {
-        return {
-          areas: [],
-          pagination: {
-            currentPage: 1,
-            totalPages: 1,
-            totalItems: 0,
-            perPage: 10,
-          },
-        }
+        console.log("No se encontraron áreas o respuesta vacía")
+        return []
       }
 
       // Transformar los datos de la API al formato local
@@ -61,50 +34,19 @@ export class AreaService {
         configuracion_id: item.configuracion_id,
       }))
 
-      // Para propósitos de depuración
-      console.log("API Response:", response)
-      console.log("Pagination Info:", {
-        currentPage: response.meta?.current_page || 1,
-        totalPages: response.meta?.last_page || 1,
-        totalItems: response.meta?.total || 0,
-        perPage: response.meta?.per_page || 10,
-      })
-
-      // Asegurarse de que los valores de paginación sean números válidos
-      const currentPage = response.meta?.current_page || 1
-      const totalPages = response.meta?.last_page || 1
-      const totalItems = response.meta?.total || areas.length
-      const perPage = response.meta?.per_page || 10
-
-      return {
-        areas,
-        pagination: {
-          currentPage,
-          totalPages,
-          totalItems,
-          perPage,
-        },
-      }
+      console.log(`Se encontraron ${areas.length} áreas`)
+      return areas
     } catch (error) {
       console.error("Error al obtener áreas:", error)
-      return {
-        areas: [],
-        pagination: {
-          currentPage: 1,
-          totalPages: 1,
-          totalItems: 0,
-          perPage: 10,
-        },
-      }
+      throw error
     }
   }
 
   // Resto de métodos del servicio...
   static async getById(id: number): Promise<Area | undefined> {
     try {
-      const response = await HttpClient.request<AreaItemApiResponse>(`${API.ENDPOINTS.AREAS}/show/${id}`, {
-        method: "GET",
-      })
+      const url = `${API.ENDPOINTS.AREAS}/show/${id}`
+      const response = await HttpClient.get<AreaItemApiResponse>(url)
 
       if (!response || !response.data) {
         return undefined
@@ -123,17 +65,10 @@ export class AreaService {
     }
   }
 
-  // En el método create, asegurarse de que se propague correctamente el error de nombre duplicado
-
   static async create(areaData: { nombre: string; configuracion_id: number }): Promise<Area> {
     try {
-      const response = await HttpClient.request<AreaItemApiResponse>(
-        `${API.ENDPOINTS.AREAS}/store/${areaData.configuracion_id}`,
-        {
-          method: "POST",
-          body: JSON.stringify({ nombre: areaData.nombre }),
-        },
-      )
+      const url = `${API.ENDPOINTS.AREAS}/store/${areaData.configuracion_id}`
+      const response = await HttpClient.post<AreaItemApiResponse>(url, { nombre: areaData.nombre })
 
       if (!response || !response.data) {
         throw new Error("Error al crear área")
@@ -177,11 +112,8 @@ export class AreaService {
 
   static async update(id: number, areaData: { nombre: string; estado?: "Activa" | "Inactiva" }): Promise<Area> {
     try {
-      // Solo enviamos el nombre en el cuerpo de la solicitud, como se muestra en el ejemplo
-      const response = await HttpClient.request<AreaItemApiResponse>(`${API.ENDPOINTS.AREAS}/update/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ nombre: areaData.nombre }),
-      })
+      const url = `${API.ENDPOINTS.AREAS}/update/${id}`
+      const response = await HttpClient.put<AreaItemApiResponse>(url, { nombre: areaData.nombre })
 
       if (!response || !response.data) {
         throw new Error("Error al actualizar área")
@@ -229,20 +161,12 @@ export class AreaService {
       }
 
       // Usamos el endpoint destroy para inactivar el área
-      const response = await HttpClient.request<AreaItemApiResponse>(`${API.ENDPOINTS.AREAS}/destroy/${id}`, {
-        method: "DELETE",
-      })
+      await HttpClient.delete(`${API.ENDPOINTS.AREAS}/destroy/${id}`)
 
-      if (!response || !response.data) {
-        throw new Error("Error al cambiar estado del área")
-      }
-
+      // Como no tenemos la respuesta directa, construimos el objeto con el estado cambiado
       return {
-        id: response.data.id,
-        nombre: response.data.nombre,
-        estado: response.data.estado ? "Activa" : "Inactiva",
-        fechaCreacion: response.data.fecha_creacion || response.data.created_at,
-        configuracion_id: response.data.configuracion_id,
+        ...currentArea,
+        estado: currentArea.estado === "Activa" ? "Inactiva" : "Activa",
       }
     } catch (error) {
       console.error("Error al cambiar estado del área:", error)
@@ -252,9 +176,7 @@ export class AreaService {
 
   static async delete(id: number): Promise<boolean> {
     try {
-      await HttpClient.request(`${API.ENDPOINTS.AREAS}/delete/${id}`, {
-        method: "DELETE",
-      })
+      await HttpClient.delete(`${API.ENDPOINTS.AREAS}/delete/${id}`)
       return true
     } catch (error) {
       console.error("Error al eliminar área:", error)

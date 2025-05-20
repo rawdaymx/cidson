@@ -102,6 +102,7 @@ export default function MetodosModule() {
     setEstadoFiltro(undefined)
   }
 
+  // Actualizar la función handleToggleEstado para usar el método del servicio
   const handleToggleEstado = async (id: number) => {
     try {
       await MetodoService.toggleEstado(id)

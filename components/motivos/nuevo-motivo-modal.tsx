@@ -4,21 +4,25 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { X } from "lucide-react"
 import type { Motivo } from "@/types/motivo"
+import { MotivoService } from "@/services/motivo-service"
 
 interface NuevoMotivoModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: (motivo: Omit<Motivo, "id"> | Motivo) => void
   motivo?: Motivo | null
+  configuracionId?: number | string
 }
 
-export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: NuevoMotivoModalProps) {
+export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo, configuracionId }: NuevoMotivoModalProps) {
   const [formData, setFormData] = useState({
     nombre: "",
   })
   const [errors, setErrors] = useState({
     nombre: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   // Cargar datos del motivo si estamos en modo edición
   useEffect(() => {
@@ -34,6 +38,7 @@ export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: Nu
     setErrors({
       nombre: "",
     })
+    setApiError(null)
   }, [motivo, isOpen])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,6 +54,11 @@ export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: Nu
         ...errors,
         [name]: "",
       })
+    }
+
+    // Limpiar error de API si existe
+    if (apiError) {
+      setApiError(null)
     }
   }
 
@@ -67,40 +77,56 @@ export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: Nu
     return isValid
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!validateForm()) {
       return
     }
 
-    // Si estamos editando, mantener el id, la fecha de registro y el estado original
-    if (motivo) {
-      onSave({
-        id: motivo.id,
-        nombre: formData.nombre.trim(),
-        estado: motivo.estado,
-        fechaCreacion: motivo.fechaCreacion,
-      })
-    } else {
-      // Obtener la fecha actual en formato dd/mm/aaaa para nuevos motivos
-      const today = new Date()
-      const day = String(today.getDate()).padStart(2, "0")
-      const month = String(today.getMonth() + 1).padStart(2, "0")
-      const year = today.getFullYear()
-      const fechaCreacion = `${day}/${month}/${year}`
+    setIsSubmitting(true)
+    setApiError(null)
 
-      onSave({
-        nombre: formData.nombre.trim(),
-        estado: "Activa",
-        fechaCreacion,
+    try {
+      // Si estamos editando, mantener el id, la fecha de registro y el estado original
+      if (motivo) {
+        const updatedMotivo = await MotivoService.update(motivo.id, {
+          nombre: formData.nombre.trim(),
+          estado: motivo.estado,
+        })
+
+        if (updatedMotivo) {
+          onSave(updatedMotivo)
+          onClose()
+        } else {
+          throw new Error("No se pudo actualizar el motivo")
+        }
+      } else {
+        // Crear nuevo motivo
+        if (!configuracionId) {
+          throw new Error("No se ha especificado la configuración")
+        }
+
+        const newMotivo = await MotivoService.create({
+          nombre: formData.nombre.trim(),
+          estado: "Activa",
+          configuracion_id: Number(configuracionId),
+        })
+
+        onSave(newMotivo)
+        onClose()
+      }
+
+      // Limpiar formulario
+      setFormData({
+        nombre: "",
       })
+    } catch (error: any) {
+      console.error("Error al guardar motivo:", error)
+      setApiError(error.message || "Ocurrió un error al guardar el motivo. Por favor, inténtelo de nuevo.")
+    } finally {
+      setIsSubmitting(false)
     }
-
-    // Limpiar formulario
-    setFormData({
-      nombre: "",
-    })
   }
 
   if (!isOpen) return null
@@ -116,6 +142,10 @@ export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: Nu
         </div>
 
         <form onSubmit={handleSubmit} className="p-5">
+          {apiError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">{apiError}</div>
+          )}
+
           <div className="space-y-5">
             <div className="space-y-2">
               <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">
@@ -131,6 +161,7 @@ export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: Nu
                   errors.nombre ? "border-red-500" : "border-gray-300"
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-[#303e65]`}
                 placeholder="Ingrese el nombre del motivo"
+                disabled={isSubmitting}
               />
               {errors.nombre && <p className="text-red-500 text-xs mt-1">{errors.nombre}</p>}
             </div>
@@ -141,11 +172,16 @@ export default function NuevoMotivoModal({ isOpen, onClose, onSave, motivo }: Nu
               type="button"
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              disabled={isSubmitting}
             >
               Cancelar
             </button>
-            <button type="submit" className="px-4 py-2 bg-cidson-blue text-white rounded-md hover:bg-cidson-blue-light">
-              {motivo ? "Actualizar" : "Guardar"}
+            <button
+              type="submit"
+              className="px-4 py-2 bg-cidson-blue text-white rounded-md hover:bg-cidson-blue-light disabled:opacity-70"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Guardando..." : motivo ? "Actualizar" : "Guardar"}
             </button>
           </div>
         </form>

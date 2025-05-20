@@ -1,5 +1,5 @@
 import type { Metodo, MetodoResponse } from "@/types/metodo"
-import { httpClient } from "@/services/http-client"
+import { HttpClient } from "@/services/http-client"
 
 export class MetodoService {
   /**
@@ -44,7 +44,7 @@ export class MetodoService {
       }
 
       console.log(`Obteniendo métodos: ${url}`)
-      const response = await httpClient.get<MetodoResponse>(url)
+      const response = await HttpClient.get<MetodoResponse>(url)
 
       // Asegurarnos de que la respuesta tenga la estructura esperada
       if (!response.data) {
@@ -62,7 +62,7 @@ export class MetodoService {
   static async getById(id: number): Promise<Metodo | undefined> {
     try {
       // Cambiando la ruta de api/metodo/{id} a api/metodos/{id} para que coincida con el patrón de la API
-      const response = await httpClient.get<{ data: Metodo }>(`/api/metodos/${id}`)
+      const response = await HttpClient.get<{ data: Metodo }>(`/api/metodos/${id}`)
       return response.data
     } catch (error) {
       console.error(`Error al obtener método con id ${id}:`, error)
@@ -73,7 +73,7 @@ export class MetodoService {
   static async create(empresaId: number, metodo: { nombre: string; descripcion: string }): Promise<Metodo> {
     try {
       console.log(`Creando método para empresa ${empresaId}:`, metodo)
-      const response = await httpClient.post<{ data: Metodo }>(`/api/metodos/store/${empresaId}`, metodo)
+      const response = await HttpClient.post<{ data: Metodo }>(`/api/metodos/store/${empresaId}`, metodo)
       return response.data
     } catch (error) {
       console.error("Error al crear método:", error)
@@ -84,7 +84,7 @@ export class MetodoService {
   static async update(id: number, metodo: Partial<Metodo>): Promise<Metodo | undefined> {
     try {
       // Usar la ruta correcta según el formato de la API proporcionada
-      const response = await httpClient.put<{ data: Metodo }>(`/api/metodos/update/${id}`, {
+      const response = await HttpClient.put<{ data: Metodo }>(`/api/metodos/update/${id}`, {
         nombre: metodo.nombre,
         descripcion: metodo.descripcion,
       })
@@ -101,11 +101,12 @@ export class MetodoService {
     }
   }
 
+  // Actualizar el método toggleEstado para usar la ruta correcta según el ejemplo proporcionado
   static async toggleEstado(id: number): Promise<Metodo | undefined> {
     try {
       console.log(`Cambiando estado del método con id ${id}`)
       // La API usa DELETE para activar/inactivar métodos
-      const response = await httpClient.delete<{ data: Metodo }>(`/api/metodos/destroy/${id}`)
+      const response = await HttpClient.delete<{ data: Metodo }>(`/api/metodos/destroy/${id}`)
       console.log("Respuesta de toggleEstado:", response)
       return response.data
     } catch (error) {
@@ -116,7 +117,7 @@ export class MetodoService {
 
   static async delete(id: number): Promise<boolean> {
     try {
-      await httpClient.delete(`/api/metodo/${id}`)
+      await HttpClient.delete(`/api/metodo/${id}`)
       return true
     } catch (error) {
       console.error(`Error al eliminar método con id ${id}:`, error)
