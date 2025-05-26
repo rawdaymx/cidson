@@ -262,9 +262,9 @@ export default function ActividadesModule({
     }
   };
 
-  // Modificar la función handleVolver para que redirija a /empresas
+  // Modificar la función handleVolver para que redirija a empresas/catalogos
   const handleVolver = () => {
-    router.push("/empresas");
+    router.push(`/empresas/catalogos/${empresaId}`);
   };
 
   if (isLoading) {

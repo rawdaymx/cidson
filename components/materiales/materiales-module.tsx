@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
-import { Filter, Plus, Search, AlertCircle } from "lucide-react";
+import { Filter, Plus, Search, AlertCircle, ArrowLeft } from "lucide-react";
 import type { Material, MaterialesResponse } from "@/types/material";
 import { MaterialService } from "@/services/material-service";
 import Link from "next/link";
@@ -166,7 +166,16 @@ export default function MaterialesModule({
   }
 
   return (
-    <div>
+    <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
+      {/* Botón Volver */}
+      <button
+        onClick={() => router.push(`/empresas/catalogos/${empresaId}`)}
+        className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
+      >
+        <ArrowLeft className="mr-1 h-4 w-4" />
+        <span>Volver</span>
+      </button>
+
       <div className="mb-4 sm:mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
           Materiales

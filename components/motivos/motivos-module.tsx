@@ -1,198 +1,241 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { Filter, Plus, Search, AlertCircle, ArrowLeft } from "lucide-react"
-import type { Motivo } from "@/types/motivo"
-import { MotivoService, type MotivosPagination } from "@/services/motivo-service"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react";
+import { Filter, Plus, Search, AlertCircle, ArrowLeft } from "lucide-react";
+import type { Motivo } from "@/types/motivo";
+import {
+  MotivoService,
+  type MotivosPagination,
+} from "@/services/motivo-service";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function MotivosModule() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const empresaId = searchParams.get("empresaId")
-  const configuracionId = searchParams.get("configuracionId") || empresaId
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const empresaId = searchParams.get("empresaId");
+  const configuracionId = searchParams.get("configuracionId") || empresaId;
 
-  const [filtros, setFiltros] = useState<string[]>([])
-  const [searchInputValue, setSearchInputValue] = useState("") // Valor del input
-  const [searchTerm, setSearchTerm] = useState("") // Término de búsqueda aplicado
-  const [motivos, setMotivos] = useState<Motivo[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const [paginationInfo, setPaginationInfo] = useState<MotivosPagination["meta"] | null>(null)
+  const [filtros, setFiltros] = useState<string[]>([]);
+  const [searchInputValue, setSearchInputValue] = useState(""); // Valor del input
+  const [searchTerm, setSearchTerm] = useState(""); // Término de búsqueda aplicado
+  const [motivos, setMotivos] = useState<Motivo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [paginationInfo, setPaginationInfo] = useState<
+    MotivosPagination["meta"] | null
+  >(null);
 
   // Cargar motivos
   const fetchMotivos = async () => {
     try {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
 
       if (!configuracionId) {
-        console.log("No hay configuracionId disponible")
-        setMotivos([])
-        setTotalItems(0)
-        setTotalPages(1)
-        setPaginationInfo(null)
-        setIsLoading(false)
-        return
+        console.log("No hay configuracionId disponible");
+        setMotivos([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setPaginationInfo(null);
+        setIsLoading(false);
+        return;
       }
 
-      console.log(`Obteniendo motivos para configuracionId: ${configuracionId}, página: ${currentPage}`)
+      console.log(
+        `Obteniendo motivos para configuracionId: ${configuracionId}, página: ${currentPage}`
+      );
 
       // Preparar filtros para la API
-      const apiFilters: { estado?: number; nombre?: string } = {}
+      const apiFilters: { estado?: number; nombre?: string } = {};
 
       // Filtrar por estado
       if (filtros.includes("1") && !filtros.includes("2")) {
-        apiFilters.estado = 1 // Activos
+        apiFilters.estado = 1; // Activos
       } else if (!filtros.includes("1") && filtros.includes("2")) {
-        apiFilters.estado = 0 // Inactivos
+        apiFilters.estado = 0; // Inactivos
       }
 
       // Filtrar por término de búsqueda
       if (searchTerm) {
-        apiFilters.nombre = searchTerm
+        apiFilters.nombre = searchTerm;
       }
 
-      console.log("Filtros aplicados:", apiFilters)
+      console.log("Filtros aplicados:", apiFilters);
 
       try {
         // Usar un bloque try-catch específico para la llamada a la API
-        const response = await MotivoService.getAll(Number(configuracionId), currentPage, apiFilters)
-        console.log("Respuesta de la API:", response)
+        const response = await MotivoService.getAll(
+          Number(configuracionId),
+          currentPage,
+          apiFilters
+        );
+        console.log("Respuesta de la API:", response);
 
         // Verificar que la respuesta tenga la estructura esperada
         if (response && response.data) {
-          setMotivos(response.data)
+          setMotivos(response.data);
 
           // Verificar que meta exista antes de acceder a sus propiedades
           if (response.meta) {
-            setPaginationInfo(response.meta)
-            setTotalPages(response.meta.last_page || 1)
-            setTotalItems(response.meta.total || response.data.length)
+            setPaginationInfo(response.meta);
+            setTotalPages(response.meta.last_page || 1);
+            setTotalItems(response.meta.total || response.data.length);
           } else {
             // Si no hay meta, usar valores predeterminados
-            setPaginationInfo(null)
-            setTotalPages(1)
-            setTotalItems(response.data.length)
+            setPaginationInfo(null);
+            setTotalPages(1);
+            setTotalItems(response.data.length);
           }
         } else {
           // Si la respuesta no tiene la estructura esperada
-          setMotivos([])
-          setPaginationInfo(null)
-          setTotalPages(1)
-          setTotalItems(0)
-          setError("La respuesta de la API no tiene el formato esperado")
+          setMotivos([]);
+          setPaginationInfo(null);
+          setTotalPages(1);
+          setTotalItems(0);
+          setError("La respuesta de la API no tiene el formato esperado");
         }
       } catch (fetchError: any) {
-        console.error("Error al obtener motivos:", fetchError)
+        console.error("Error al obtener motivos:", fetchError);
 
         // Mostrar mensaje de error más detallado
-        if (fetchError.message && fetchError.message.includes("Failed to fetch")) {
-          setError("No se pudo conectar con el servidor. Verifique su conexión a internet o contacte al administrador.")
-        } else if (fetchError.message && fetchError.message.includes("Unexpected token")) {
-          setError("El servidor devolvió una respuesta no válida. Contacte al administrador del sistema.")
+        if (
+          fetchError.message &&
+          fetchError.message.includes("Failed to fetch")
+        ) {
+          setError(
+            "No se pudo conectar con el servidor. Verifique su conexión a internet o contacte al administrador."
+          );
+        } else if (
+          fetchError.message &&
+          fetchError.message.includes("Unexpected token")
+        ) {
+          setError(
+            "El servidor devolvió una respuesta no válida. Contacte al administrador del sistema."
+          );
         } else if (fetchError.message && fetchError.message.includes("HTML")) {
-          setError("El servidor devolvió HTML en lugar de JSON. Verifique la configuración de la API.")
+          setError(
+            "El servidor devolvió HTML en lugar de JSON. Verifique la configuración de la API."
+          );
         } else {
-          setError(`Error al cargar motivos: ${fetchError.message || "Error desconocido"}`)
+          setError(
+            `Error al cargar motivos: ${
+              fetchError.message || "Error desconocido"
+            }`
+          );
         }
 
-        setMotivos([])
-        setPaginationInfo(null)
-        setTotalPages(1)
-        setTotalItems(0)
+        setMotivos([]);
+        setPaginationInfo(null);
+        setTotalPages(1);
+        setTotalItems(0);
       }
     } catch (error: any) {
-      console.error("Error general:", error)
-      setError(`Error inesperado: ${error.message || "Error desconocido"}`)
-      setMotivos([])
-      setPaginationInfo(null)
-      setTotalPages(1)
-      setTotalItems(0)
+      console.error("Error general:", error);
+      setError(`Error inesperado: ${error.message || "Error desconocido"}`);
+      setMotivos([]);
+      setPaginationInfo(null);
+      setTotalPages(1);
+      setTotalItems(0);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchMotivos()
-  }, [currentPage, filtros, searchTerm, configuracionId])
+    fetchMotivos();
+  }, [currentPage, filtros, searchTerm, configuracionId]);
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro))
+      setFiltros(filtros.filter((f) => f !== filtro));
     } else {
-      setFiltros([...filtros, filtro])
+      setFiltros([...filtros, filtro]);
     }
 
     // Reset to page 1 when changing filters
-    setCurrentPage(1)
-  }
+    setCurrentPage(1);
+  };
 
   const limpiarFiltros = () => {
-    setFiltros([])
-    setSearchInputValue("") // Limpiar el input
-    setSearchTerm("") // Limpiar el término de búsqueda aplicado
-    setCurrentPage(1)
-  }
+    setFiltros([]);
+    setSearchInputValue(""); // Limpiar el input
+    setSearchTerm(""); // Limpiar el término de búsqueda aplicado
+    setCurrentPage(1);
+  };
 
   const handleToggleEstado = async (id: number) => {
     try {
-      setError(null)
+      setError(null);
 
       // Usar toggleEstado para cambiar el estado
-      await MotivoService.toggleEstado(id)
+      await MotivoService.toggleEstado(id);
 
       // Recargar los motivos para reflejar el cambio
-      fetchMotivos()
+      fetchMotivos();
     } catch (error: any) {
-      console.error("Error al cambiar estado:", error)
-      setError(`No se pudo cambiar el estado del motivo: ${error.message || "Error desconocido"}`)
+      console.error("Error al cambiar estado:", error);
+      setError(
+        `No se pudo cambiar el estado del motivo: ${
+          error.message || "Error desconocido"
+        }`
+      );
     }
-  }
+  };
 
   const handleEditMotivo = (motivo: Motivo) => {
     try {
       // Guardar el motivo en localStorage
-      localStorage.setItem("motivo_editar", JSON.stringify(motivo))
+      localStorage.setItem("motivo_editar", JSON.stringify(motivo));
 
       // Navegar a la página de edición con una URL limpia
-      router.push(`/motivos/editar/${motivo.id}${configuracionId ? `?configuracionId=${configuracionId}` : ""}`)
+      router.push(
+        `/motivos/editar/${motivo.id}${
+          configuracionId ? `?configuracionId=${configuracionId}` : ""
+        }`
+      );
     } catch (error) {
-      console.error("Error al guardar el motivo en localStorage:", error)
+      console.error("Error al guardar el motivo en localStorage:", error);
       // Si hay un error, navegar de todos modos
-      router.push(`/motivos/editar/${motivo.id}${configuracionId ? `?configuracionId=${configuracionId}` : ""}`)
+      router.push(
+        `/motivos/editar/${motivo.id}${
+          configuracionId ? `?configuracionId=${configuracionId}` : ""
+        }`
+      );
     }
-  }
+  };
 
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
-      setCurrentPage(page)
+      setCurrentPage(page);
     }
-  }
+  };
 
   // Maneja cambios en el input de búsqueda (solo actualiza el valor del input)
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchInputValue(e.target.value)
-  }
+    setSearchInputValue(e.target.value);
+  };
 
   // Función para aplicar la búsqueda cuando se presiona Enter
   const handleSubmitSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearchTerm(searchInputValue) // Actualiza el término de búsqueda real
-    setCurrentPage(1) // Reset a la primera página
-  }
+    e.preventDefault();
+    setSearchTerm(searchInputValue); // Actualiza el término de búsqueda real
+    setCurrentPage(1); // Reset a la primera página
+  };
 
   // Función para generar enlaces de paginación incluso cuando no hay datos
   const renderPagination = () => {
     // Si tenemos información de paginación de la API, usamos esa
-    if (paginationInfo && paginationInfo.links && paginationInfo.links.length > 3) {
+    if (
+      paginationInfo &&
+      paginationInfo.links &&
+      paginationInfo.links.length > 3
+    ) {
       return (
         <div className="flex items-center space-x-1">
           <button
@@ -217,7 +260,9 @@ export default function MotivosModule() {
                 <button
                   key={index}
                   onClick={() => goToPage(Number(link.label))}
-                  className={`px-3 py-1 text-sm rounded-md ${link.active ? "bg-[#303e65] text-white" : "text-gray-500"}`}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    link.active ? "bg-[#303e65] text-white" : "text-gray-500"
+                  }`}
                 >
                   {link.label}
                 </button>
@@ -238,12 +283,12 @@ export default function MotivosModule() {
             Última »
           </button>
         </div>
-      )
+      );
     }
     // Si no hay información de paginación, mostramos una paginación estática
     else {
       // Determinar el número de páginas a mostrar (mínimo 1)
-      const displayPages = Math.max(totalPages, 1)
+      const displayPages = Math.max(totalPages, 1);
 
       return (
         <div className="flex items-center space-x-1">
@@ -267,7 +312,9 @@ export default function MotivosModule() {
               key={page}
               onClick={() => goToPage(page)}
               className={`px-3 py-1 text-sm rounded-md ${
-                currentPage === page ? "bg-[#303e65] text-white" : "text-gray-500"
+                currentPage === page
+                  ? "bg-[#303e65] text-white"
+                  : "text-gray-500"
               }`}
             >
               {page}
@@ -289,9 +336,9 @@ export default function MotivosModule() {
             Última »
           </button>
         </div>
-      )
+      );
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -301,24 +348,24 @@ export default function MotivosModule() {
           <p className="mt-4 text-gray-600">Cargando información...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
       {/* Botón Regresar */}
-      {empresaId && (
-        <Link
-          href={`/empresas/catalogos/${empresaId}`}
-          className="inline-flex items-center text-[#303e65] mb-6 hover:underline"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Regresar
-        </Link>
-      )}
+      <button
+        onClick={() => router.push(`/empresas/catalogos/${empresaId}`)}
+        className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
+      >
+        <ArrowLeft className="mr-1 h-4 w-4" />
+        <span>Volver</span>
+      </button>
 
       <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Motivos</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
+          Motivos
+        </h1>
         <p className="text-sm sm:text-base text-gray-600">
           Administra los motivos de justificación con los que trabaja CIDSON.
         </p>
@@ -330,7 +377,10 @@ export default function MotivosModule() {
           <div>
             <p className="font-medium">Error</p>
             <p>{error}</p>
-            <button className="mt-2 text-sm text-red-700 underline" onClick={fetchMotivos}>
+            <button
+              className="mt-2 text-sm text-red-700 underline"
+              onClick={fetchMotivos}
+            >
               Intentar nuevamente
             </button>
           </div>
@@ -341,15 +391,22 @@ export default function MotivosModule() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{totalItems}</span>
-            <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
+              {totalItems}
+            </span>
+            <span className="text-sm sm:text-base text-gray-600 font-medium">
+              REGISTROS
+            </span>
           </div>
 
           {/* Barra de búsqueda, filtros y botón nuevo motivo */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <form onSubmit={handleSubmitSearch} className="relative w-full sm:w-56">
+              <form
+                onSubmit={handleSubmitSearch}
+                className="relative w-full sm:w-56"
+              >
                 <input
                   type="text"
                   placeholder="Buscar motivo... (Enter para buscar)"
@@ -370,7 +427,8 @@ export default function MotivosModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activos{" "}
+                  {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -379,7 +437,8 @@ export default function MotivosModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivos{" "}
+                  {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -400,7 +459,8 @@ export default function MotivosModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activos{" "}
+                {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -409,7 +469,8 @@ export default function MotivosModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivos{" "}
+                {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -423,7 +484,9 @@ export default function MotivosModule() {
 
             {/* Botón de Nuevo Motivo */}
             <Link
-              href={`/motivos/nuevo${configuracionId ? `?configuracionId=${configuracionId}` : ""}`}
+              href={`/motivos/nuevo${
+                configuracionId ? `?configuracionId=${configuracionId}` : ""
+              }`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nuevo Motivo
@@ -438,9 +501,15 @@ export default function MotivosModule() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f4f6fb]">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">
+                  Nombre
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Estado
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -452,7 +521,9 @@ export default function MotivosModule() {
                       <div className="flex justify-center">
                         <span
                           className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                            motivo.estado === "Activa" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                            motivo.estado === "Activa"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
                           }`}
                         >
                           {motivo.estado}
@@ -488,7 +559,11 @@ export default function MotivosModule() {
                         <button
                           onClick={() => handleToggleEstado(motivo.id)}
                           className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
-                          aria-label={motivo.estado === "Activa" ? "Desactivar" : "Activar"}
+                          aria-label={
+                            motivo.estado === "Activa"
+                              ? "Desactivar"
+                              : "Activar"
+                          }
                         >
                           {motivo.estado === "Activa" ? (
                             <svg
@@ -547,7 +622,10 @@ export default function MotivosModule() {
                 : "No se encontraron motivos con los filtros aplicados"}
             </p>
             {configuracionId && (
-              <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
+              <button
+                className="mt-4 px-4 py-2 rounded-md border border-gray-300"
+                onClick={limpiarFiltros}
+              >
                 Limpiar filtros
               </button>
             )}
@@ -555,8 +633,10 @@ export default function MotivosModule() {
         )}
 
         {/* Paginación siempre visible */}
-        <div className="flex justify-center py-4 border-t border-gray-100">{renderPagination()}</div>
+        <div className="flex justify-center py-4 border-t border-gray-100">
+          {renderPagination()}
+        </div>
       </div>
     </div>
-  )
+  );
 }

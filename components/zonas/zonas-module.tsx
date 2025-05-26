@@ -1,127 +1,137 @@
-"use client"
+"use client";
 
-import { useState, useEffect, type FormEvent } from "react"
-import { Filter, Plus, Search } from "lucide-react"
-import type { Zona } from "@/types/zona"
-import { ZonaService } from "@/services/zona-service"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, type FormEvent } from "react";
+import { Filter, Plus, Search, ArrowLeft } from "lucide-react";
+import type { Zona } from "@/types/zona";
+import { ZonaService } from "@/services/zona-service";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ZonasModule() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const empresaId = searchParams.get("empresaId") || "9" // Valor por defecto para pruebas
-  const [filtros, setFiltros] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [searchQuery, setSearchQuery] = useState("") // Término de búsqueda actual aplicado
-  const [zonas, setZonas] = useState<Zona[]>([])
-  const [filteredZonas, setFilteredZonas] = useState<Zona[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [error, setError] = useState<string | null>(null)
-  const itemsPerPage = 10
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const empresaId = searchParams.get("empresaId") || "9"; // Valor por defecto para pruebas
+  const [filtros, setFiltros] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState(""); // Término de búsqueda actual aplicado
+  const [zonas, setZonas] = useState<Zona[]>([]);
+  const [filteredZonas, setFilteredZonas] = useState<Zona[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const itemsPerPage = 10;
 
   // Cargar zonas
   useEffect(() => {
     const fetchZonas = async () => {
       try {
-        setIsLoading(true)
-        setError(null)
+        setIsLoading(true);
+        setError(null);
 
         // Preparar filtros para la API
-        const apiFilters: { nombre?: string; estado?: number } = {}
+        const apiFilters: { nombre?: string; estado?: number } = {};
 
         // Si hay término de búsqueda, añadirlo al filtro
         if (searchQuery) {
-          apiFilters.nombre = searchQuery
+          apiFilters.nombre = searchQuery;
         }
 
         // Mapear filtros de UI a valores de API
         if (filtros.includes("1") && !filtros.includes("2")) {
-          apiFilters.estado = 1 // Solo Activas
+          apiFilters.estado = 1; // Solo Activas
         } else if (!filtros.includes("1") && filtros.includes("2")) {
-          apiFilters.estado = 0 // Solo Inactivas
+          apiFilters.estado = 0; // Solo Inactivas
         }
         // Si ambos filtros están seleccionados o ninguno está seleccionado,
         // no incluimos el parámetro estado en la solicitud
 
-        console.log("Obteniendo zonas para configuración:", empresaId, "con filtros:", apiFilters)
+        console.log(
+          "Obteniendo zonas para configuración:",
+          empresaId,
+          "con filtros:",
+          apiFilters
+        );
         const { zonas: zonasData, pagination } = await ZonaService.getAll(
           empresaId ? Number(empresaId) : undefined,
           currentPage,
-          apiFilters,
-        )
+          apiFilters
+        );
 
-        setZonas(zonasData)
-        setFilteredZonas(zonasData)
+        setZonas(zonasData);
+        setFilteredZonas(zonasData);
 
         // Actualizar información de paginación si está disponible
         if (pagination) {
-          setCurrentPage(pagination.currentPage)
-          setTotalPages(pagination.totalPages)
+          setCurrentPage(pagination.currentPage);
+          setTotalPages(pagination.totalPages);
         }
       } catch (error) {
-        console.error("Error al cargar zonas:", error)
-        setError("Ocurrió un error al cargar las zonas. Se muestran datos de ejemplo.")
+        console.error("Error al cargar zonas:", error);
+        setError(
+          "Ocurrió un error al cargar las zonas. Se muestran datos de ejemplo."
+        );
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchZonas()
-  }, [empresaId, currentPage, searchQuery, filtros])
+    fetchZonas();
+  }, [empresaId, currentPage, searchQuery, filtros]);
 
   // Este efecto solo se usa para mantener filteredZonas sincronizado con zonas
   useEffect(() => {
-    setFilteredZonas(zonas)
-  }, [zonas])
+    setFilteredZonas(zonas);
+  }, [zonas]);
 
   const toggleFiltro = (filtro: string) => {
-    setCurrentPage(1) // Resetear a la primera página al cambiar filtros
+    setCurrentPage(1); // Resetear a la primera página al cambiar filtros
     if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro))
+      setFiltros(filtros.filter((f) => f !== filtro));
     } else {
       // Permitir seleccionar ambos filtros simultáneamente
-      setFiltros([...filtros, filtro])
+      setFiltros([...filtros, filtro]);
     }
-  }
+  };
 
   const limpiarFiltros = () => {
-    setFiltros([])
-    setSearchTerm("")
-    setSearchQuery("")
-    setCurrentPage(1)
-  }
+    setFiltros([]);
+    setSearchTerm("");
+    setSearchQuery("");
+    setCurrentPage(1);
+  };
 
   const handleSubmitSearch = (e: FormEvent) => {
-    e.preventDefault()
-    setSearchQuery(searchTerm)
-    setCurrentPage(1)
-  }
+    e.preventDefault();
+    setSearchQuery(searchTerm);
+    setCurrentPage(1);
+  };
 
   const handleToggleEstado = async (id: number) => {
     try {
-      await ZonaService.toggleEstado(id)
+      await ZonaService.toggleEstado(id);
       // Recargar datos después de cambiar el estado
-      const { zonas: updatedZonas } = await ZonaService.getAll(empresaId ? Number(empresaId) : undefined, currentPage)
-      setZonas(updatedZonas)
+      const { zonas: updatedZonas } = await ZonaService.getAll(
+        empresaId ? Number(empresaId) : undefined,
+        currentPage
+      );
+      setZonas(updatedZonas);
     } catch (error) {
-      console.error("Error al cambiar estado:", error)
-      alert("Error al cambiar el estado de la zona")
+      console.error("Error al cambiar estado:", error);
+      alert("Error al cambiar el estado de la zona");
     }
-  }
+  };
 
   const handleEditZona = (id: number) => {
-    router.push(`/zona/editar/${id}`)
-  }
+    router.push(`/zona/editar/${id}`);
+  };
 
   // Paginación
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
-      setCurrentPage(page)
+      setCurrentPage(page);
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -131,14 +141,27 @@ export default function ZonasModule() {
           <p className="mt-4 text-gray-600">Cargando información...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
+      {/* Botón Volver */}
+      <button
+        onClick={() => router.push(`/empresas/catalogos/${empresaId}`)}
+        className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
+      >
+        <ArrowLeft className="mr-1 h-4 w-4" />
+        <span>Volver</span>
+      </button>
+
       <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Zonas</h1>
-        <p className="text-sm sm:text-base text-gray-600">Administra las zonas con las que trabaja CIDSON.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
+          Zonas
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600">
+          Administra las zonas con las que trabaja CIDSON.
+        </p>
         {error && (
           <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md text-yellow-700 text-sm">
             {error}
@@ -150,15 +173,22 @@ export default function ZonasModule() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{filteredZonas.length}</span>
-            <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
+              {filteredZonas.length}
+            </span>
+            <span className="text-sm sm:text-base text-gray-600 font-medium">
+              REGISTROS
+            </span>
           </div>
 
           {/* Barra de búsqueda, filtros y botón nueva zona */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <form onSubmit={handleSubmitSearch} className="relative w-full sm:w-56">
+              <form
+                onSubmit={handleSubmitSearch}
+                className="relative w-full sm:w-56"
+              >
                 <input
                   type="text"
                   placeholder="Buscar zona..."
@@ -179,7 +209,8 @@ export default function ZonasModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activas{" "}
+                  {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -188,7 +219,8 @@ export default function ZonasModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivas{" "}
+                  {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -209,7 +241,8 @@ export default function ZonasModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activas{" "}
+                {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -218,7 +251,8 @@ export default function ZonasModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivas{" "}
+                {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -247,9 +281,15 @@ export default function ZonasModule() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f4f6fb]">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">
+                  Nombre
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Estado
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -260,7 +300,9 @@ export default function ZonasModule() {
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          zona.estado === "Activa" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          zona.estado === "Activa"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
                         {zona.estado}
@@ -275,7 +317,13 @@ export default function ZonasModule() {
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
                         aria-label="Editar"
                       >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
                           <path
                             d="M8.90469 3.76136L12.2385 7.09513L4.99932 14.3343L2.02701 14.6624C1.6291 14.7064 1.29291 14.3699 1.33718 13.972L1.6679 10.9976L8.90469 3.76136ZM14.3004 3.26502L12.7351 1.6997C12.2468 1.21143 11.4549 1.21143 10.9666 1.6997L9.494 3.17232L12.8278 6.50608L14.3004 5.03346C14.7887 4.54494 14.7887 3.75329 14.3004 3.26502Z"
                             fill="#2C4874"
@@ -287,7 +335,9 @@ export default function ZonasModule() {
                       <button
                         onClick={() => handleToggleEstado(zona.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
-                        aria-label={zona.estado === "Activa" ? "Desactivar" : "Activar"}
+                        aria-label={
+                          zona.estado === "Activa" ? "Desactivar" : "Activar"
+                        }
                       >
                         {zona.estado === "Activa" ? (
                           <svg
@@ -327,8 +377,13 @@ export default function ZonasModule() {
 
         {filteredZonas.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No se encontraron zonas con los filtros aplicados</p>
-            <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
+            <p className="text-gray-500 text-lg">
+              No se encontraron zonas con los filtros aplicados
+            </p>
+            <button
+              className="mt-4 px-4 py-2 rounded-md border border-gray-300"
+              onClick={limpiarFiltros}
+            >
               Limpiar filtros
             </button>
           </div>
@@ -354,18 +409,20 @@ export default function ZonasModule() {
               </button>
 
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1
+                const pageNum = i + 1;
                 return (
                   <button
                     key={pageNum}
                     onClick={() => goToPage(pageNum)}
                     className={`px-3 py-1 text-sm rounded-md ${
-                      currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
+                      currentPage === pageNum
+                        ? "bg-[#303e65] text-white"
+                        : "text-gray-500"
                     }`}
                   >
                     {pageNum}
                   </button>
-                )
+                );
               })}
 
               <button
@@ -387,5 +444,5 @@ export default function ZonasModule() {
         )}
       </div>
     </div>
-  )
+  );
 }

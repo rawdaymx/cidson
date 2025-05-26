@@ -8,10 +8,26 @@ export class AreaService {
     configuracionId?: number,
     page = 1,
     search = ""
-  ): Promise<Area[]> {
+  ): Promise<{
+    areas: Area[];
+    pagination: {
+      totalPages: number;
+      totalItems: number;
+      perPage: number;
+      currentPage: number;
+    };
+  }> {
     try {
       if (!configuracionId) {
-        return [];
+        return {
+          areas: [],
+          pagination: {
+            totalPages: 1,
+            totalItems: 0,
+            perPage: 10,
+            currentPage: 1,
+          },
+        };
       }
 
       // Construir URL con parámetros de paginación y búsqueda
@@ -26,7 +42,15 @@ export class AreaService {
 
       if (!response || !response.data) {
         console.log("No se encontraron áreas o respuesta vacía");
-        return [];
+        return {
+          areas: [],
+          pagination: {
+            totalPages: 1,
+            totalItems: 0,
+            perPage: 10,
+            currentPage: 1,
+          },
+        };
       }
 
       // Transformar los datos de la API al formato local
@@ -38,11 +62,27 @@ export class AreaService {
         configuracion_id: item.configuracion_id,
       }));
 
+      // Extraer información de paginación
+      const pagination = {
+        totalPages: response.meta.last_page,
+        totalItems: response.meta.total,
+        perPage: response.meta.per_page,
+        currentPage: response.meta.current_page,
+      };
+
       console.log(`Se encontraron ${areas.length} áreas`);
-      return areas;
+      return { areas, pagination };
     } catch (error) {
       console.error("Error al obtener áreas:", error);
-      throw error;
+      return {
+        areas: [],
+        pagination: {
+          totalPages: 1,
+          totalItems: 0,
+          perPage: 10,
+          currentPage: 1,
+        },
+      };
     }
   }
 
