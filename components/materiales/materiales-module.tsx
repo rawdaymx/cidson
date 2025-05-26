@@ -1,135 +1,158 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { Filter, Plus, Search, AlertCircle } from "lucide-react"
-import type { Material, MaterialesResponse } from "@/types/material"
-import { MaterialService } from "@/services/material-service"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react";
+import { Filter, Plus, Search, AlertCircle } from "lucide-react";
+import type { Material, MaterialesResponse } from "@/types/material";
+import { MaterialService } from "@/services/material-service";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-export default function MaterialesModule() {
-  const router = useRouter()
-  const [filtros, setFiltros] = useState<string[]>([])
-  const [searchInputValue, setSearchInputValue] = useState("") // Valor del input
-  const [searchTerm, setSearchTerm] = useState("") // Término de búsqueda aplicado
-  const [materiales, setMateriales] = useState<Material[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const [paginationInfo, setPaginationInfo] = useState<MaterialesResponse["meta"] | null>(null)
+interface MaterialesModuleProps {
+  empresaId: number;
+  configuracionId: number;
+}
 
-  // ID de configuración por defecto
-  const configuracionId = 9
+export default function MaterialesModule({
+  empresaId,
+  configuracionId,
+}: MaterialesModuleProps) {
+  const router = useRouter();
+  const [filtros, setFiltros] = useState<string[]>([]);
+  const [searchInputValue, setSearchInputValue] = useState(""); // Valor del input
+  const [searchTerm, setSearchTerm] = useState(""); // Término de búsqueda aplicado
+  const [materiales, setMateriales] = useState<Material[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [paginationInfo, setPaginationInfo] = useState<
+    MaterialesResponse["meta"] | null
+  >(null);
 
   // Cargar materiales
   useEffect(() => {
     const fetchMateriales = async () => {
       try {
-        setIsLoading(true)
-        setError(null)
+        setIsLoading(true);
+        setError(null);
 
         // Preparar filtros para la API
-        const apiFilters: { estado?: number; nombre?: string } = {}
+        const apiFilters: { estado?: number; nombre?: string } = {};
 
         // Filtrar por estado
         if (filtros.includes("1") && !filtros.includes("2")) {
-          apiFilters.estado = 1 // Activos
+          apiFilters.estado = 1; // Activos
         } else if (!filtros.includes("1") && filtros.includes("2")) {
-          apiFilters.estado = 0 // Inactivos
+          apiFilters.estado = 0; // Inactivos
         }
 
         // Filtrar por término de búsqueda
         if (searchTerm) {
-          apiFilters.nombre = searchTerm
+          apiFilters.nombre = searchTerm;
         }
 
-        const response = await MaterialService.getAll(configuracionId, currentPage, apiFilters)
-        setMateriales(response.data)
+        const response = await MaterialService.getAll(configuracionId, {
+          page: currentPage,
+          ...apiFilters,
+        });
 
-        // Guardar los materiales en localStorage
-        localStorage.setItem("materiales", JSON.stringify(response.data))
-
-        setPaginationInfo(response.meta)
-        setTotalPages(response.meta.last_page)
-        setTotalItems(response.meta.total)
+        setMateriales(response.materiales);
+        setPaginationInfo(response.pagination);
+        setTotalPages(response.pagination.last_page);
+        setTotalItems(response.pagination.total);
       } catch (error) {
-        console.error("Error al cargar materiales:", error)
-        setError("No se pudieron cargar los materiales. Por favor, intente de nuevo más tarde.")
+        console.error("Error al cargar materiales:", error);
+        if (
+          error instanceof Error &&
+          error.message.includes("Unauthenticated")
+        ) {
+          router.push("/login");
+        } else {
+          setError(
+            "No se pudieron cargar los materiales. Por favor, intente de nuevo más tarde."
+          );
+        }
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchMateriales()
-  }, [currentPage, filtros, searchTerm]) // searchTerm en lugar de searchInputValue
+    fetchMateriales();
+  }, [currentPage, filtros, searchTerm, router, configuracionId]);
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro))
+      setFiltros(filtros.filter((f) => f !== filtro));
     } else {
-      setFiltros([...filtros, filtro])
+      setFiltros([...filtros, filtro]);
     }
 
     // Reset to page 1 when changing filters
-    setCurrentPage(1)
-  }
+    setCurrentPage(1);
+  };
 
   const limpiarFiltros = () => {
-    setFiltros([])
-    setSearchInputValue("") // Limpiar el input
-    setSearchTerm("") // Limpiar el término de búsqueda aplicado
-    setCurrentPage(1)
-  }
+    setFiltros([]);
+    setSearchInputValue(""); // Limpiar el input
+    setSearchTerm(""); // Limpiar el término de búsqueda aplicado
+    setCurrentPage(1);
+  };
 
   // Actualizar el método handleToggleEstado para usar el método correcto
   const handleToggleEstado = async (id: number) => {
     try {
-      setError(null)
+      setError(null);
 
-      // Usar toggleEstado para ambos casos (activar y desactivar)
-      await MaterialService.toggleEstado(id)
+      await MaterialService.toggleEstado(configuracionId, id);
 
       // Recargar los materiales para reflejar el cambio
-      const response = await MaterialService.getAll(configuracionId, currentPage)
-      setMateriales(response.data)
+      const response = await MaterialService.getAll(configuracionId, {
+        page: currentPage,
+      });
 
-      // Actualizar localStorage después de cambiar el estado
-      localStorage.setItem("materiales", JSON.stringify(response.data))
-
-      setPaginationInfo(response.meta)
-      setTotalPages(response.meta.last_page)
-      setTotalItems(response.meta.total)
+      setMateriales(response.materiales);
+      setPaginationInfo(response.pagination);
+      setTotalPages(response.pagination.last_page);
+      setTotalItems(response.pagination.total);
     } catch (error) {
-      console.error("Error al cambiar estado:", error)
-      setError("No se pudo cambiar el estado del material. Por favor, intente de nuevo más tarde.")
+      console.error("Error al cambiar estado:", error);
+      if (error instanceof Error && error.message.includes("Unauthenticated")) {
+        router.push("/login");
+      } else {
+        setError(
+          "No se pudo cambiar el estado del material. Por favor, intente de nuevo más tarde."
+        );
+      }
     }
-  }
+  };
 
   const handleEditMaterial = (id: number) => {
-    router.push(`/materiales/editar/${id}`)
-  }
+    const params = new URLSearchParams();
+    params.append("empresaId", empresaId.toString());
+    params.append("configuracionId", configuracionId.toString());
+    router.push(`/materiales/editar/${id}?${params.toString()}`);
+  };
 
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
-      setCurrentPage(page)
+      setCurrentPage(page);
     }
-  }
+  };
 
   // Maneja cambios en el input de búsqueda (solo actualiza el valor del input)
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchInputValue(e.target.value)
-  }
+    setSearchInputValue(e.target.value);
+  };
 
   // Función para aplicar la búsqueda cuando se presiona Enter
   const handleSubmitSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearchTerm(searchInputValue) // Actualiza el término de búsqueda real
-    setCurrentPage(1) // Reset a la primera página
-  }
+    e.preventDefault();
+    setSearchTerm(searchInputValue); // Actualiza el término de búsqueda real
+    setCurrentPage(1); // Reset a la primera página
+  };
 
   if (isLoading) {
     return (
@@ -139,14 +162,18 @@ export default function MaterialesModule() {
           <p className="mt-4 text-gray-600">Cargando información...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
-      <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Materiales</h1>
-        <p className="text-sm sm:text-base text-gray-600">Administra los materiales con los que trabaja CIDSON.</p>
+    <div>
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
+          Materiales
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600">
+          Administra los materiales con los que trabaja CIDSON.
+        </p>
       </div>
 
       {error && (
@@ -156,29 +183,38 @@ export default function MaterialesModule() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
+      <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 mb-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{totalItems}</span>
-            <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
+              {totalItems}
+            </span>
+            <span className="text-sm sm:text-base text-gray-600 font-medium">
+              REGISTROS
+            </span>
           </div>
 
           {/* Barra de búsqueda, filtros y botón nuevo material */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <form onSubmit={handleSubmitSearch} className="relative w-full sm:w-56">
+              <form
+                onSubmit={handleSubmitSearch}
+                className="relative w-full sm:w-56"
+              >
                 <input
                   type="text"
-                  placeholder="Buscar material... (Enter para buscar)"
+                  placeholder="Buscar material..."
                   className="pl-9 bg-gray-50 border border-gray-200 rounded-md w-full p-2 text-sm"
                   value={searchInputValue}
                   onChange={handleSearchInputChange}
                 />
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <button type="submit" className="sr-only">
-                  Buscar
+                <button
+                  type="submit"
+                  className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"
+                >
+                  <Search className="h-4 w-4" />
                 </button>
               </form>
 
@@ -189,7 +225,8 @@ export default function MaterialesModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activos{" "}
+                  {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -198,7 +235,8 @@ export default function MaterialesModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivos{" "}
+                  {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -219,7 +257,8 @@ export default function MaterialesModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activos{" "}
+                {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -228,7 +267,8 @@ export default function MaterialesModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivos{" "}
+                {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -252,14 +292,20 @@ export default function MaterialesModule() {
       </div>
 
       {/* Tabla de materiales */}
-      <div className="bg-white rounded-xl shadow-card overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-[#f4f6fb]">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre Del Material</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
+              <tr className="bg-[rgb(244,246,251)]">
+                <th className="text-left py-3 px-4 font-medium text-gray-700">
+                  Nombre Del Material
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Estado
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -270,10 +316,12 @@ export default function MaterialesModule() {
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          material.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          material.estado
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {material.estado ? "Activa" : "Inactiva"}
+                        {material.estado ? "Activo" : "Inactivo"}
                       </span>
                     </div>
                   </td>
@@ -285,7 +333,13 @@ export default function MaterialesModule() {
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
                         aria-label="Editar"
                       >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
                           <path
                             d="M8.90469 3.76136L12.2385 7.09513L4.99932 14.3343L2.02701 14.6624C1.6291 14.7064 1.29291 14.3699 1.33718 13.972L1.6679 10.9976L8.90469 3.76136ZM14.3004 3.26502L12.7351 1.6997C12.2468 1.21143 11.4549 1.21143 10.9666 1.6997L9.494 3.17232L12.8278 6.50608L14.3004 5.03346C14.7887 4.54494 14.7887 3.75329 14.3004 3.26502Z"
                             fill="#2C4874"
@@ -337,15 +391,20 @@ export default function MaterialesModule() {
 
         {materiales.length === 0 && !error && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No se encontraron materiales con los filtros aplicados</p>
-            <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
+            <p className="text-gray-500 text-lg">
+              No se encontraron materiales con los filtros aplicados
+            </p>
+            <button
+              className="mt-4 px-4 py-2 rounded-md border border-gray-300"
+              onClick={limpiarFiltros}
+            >
               Limpiar filtros
             </button>
           </div>
         )}
 
-        {/* Paginación con datos de la API */}
-        {materiales.length > 0 && paginationInfo && (
+        {/* Paginación */}
+        {paginationInfo && (
           <div className="flex justify-center py-4 border-t border-gray-100">
             <div className="flex items-center space-x-1">
               <button
@@ -363,19 +422,21 @@ export default function MaterialesModule() {
                 ‹ Anterior
               </button>
 
-              {paginationInfo.links
-                .filter((link) => !isNaN(Number(link.label)))
-                .map((link, index) => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                (page) => (
                   <button
-                    key={index}
-                    onClick={() => goToPage(Number(link.label))}
+                    key={page}
+                    onClick={() => goToPage(page)}
                     className={`px-3 py-1 text-sm rounded-md ${
-                      link.active ? "bg-[#303e65] text-white" : "text-gray-500"
+                      page === currentPage
+                        ? "bg-[#303e65] text-white"
+                        : "text-gray-500"
                     }`}
                   >
-                    {link.label}
+                    {page}
                   </button>
-                ))}
+                )
+              )}
 
               <button
                 onClick={() => goToPage(currentPage + 1)}
@@ -396,5 +457,5 @@ export default function MaterialesModule() {
         )}
       </div>
     </div>
-  )
+  );
 }

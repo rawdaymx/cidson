@@ -1,5 +1,5 @@
-import type { Zona } from "@/types/zona"
-import { getApiUrl, getAuthToken } from "@/config/api-config"
+import type { Zona } from "@/types/zona";
+import { API, getApiUrl, getAuthToken } from "@/config/api-config";
 
 export class ZonaService {
   private static zonas: Zona[] = [
@@ -63,12 +63,12 @@ export class ZonaService {
       estado: "Inactiva",
       fechaCreacion: "25/02/2023",
     },
-  ]
+  ];
 
   static async getAll(
     configuracionId?: number,
     page = 1,
-    filters: { nombre?: string; estado?: number } = {},
+    filters: { nombre?: string; estado?: number } = {}
   ): Promise<{ zonas: Zona[]; pagination: any }> {
     try {
       if (!configuracionId) {
@@ -80,33 +80,33 @@ export class ZonaService {
             totalPages: 1,
             total: this.zonas.length,
           },
-        }
+        };
       }
 
       // Obtener API URL y token de autenticación
-      const apiUrl = getApiUrl()
+      const apiUrl = getApiUrl();
       const token =
-        getAuthToken() || localStorage.getItem("token") || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
+        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
 
       // Validar que tenemos una URL base válida
       if (!apiUrl) {
-        console.error("URL de API no definida")
-        throw new Error("URL de API no definida")
+        console.error("URL de API no definida");
+        throw new Error("URL de API no definida");
       }
 
       // Construir URL con parámetros de consulta
-      let url = `${apiUrl}/api/zonas/${configuracionId}?page=${page}`
+      let url = `${apiUrl}/api/zonas/${configuracionId}?page=${page}`;
 
       // Añadir filtros si existen
       if (filters.nombre) {
-        url += `&nombre=${encodeURIComponent(filters.nombre)}`
+        url += `&nombre=${encodeURIComponent(filters.nombre)}`;
       }
 
       if (filters.estado !== undefined) {
-        url += `&estado=${filters.estado}`
+        url += `&estado=${filters.estado}`;
       }
 
-      console.log("Fetching zonas from:", url)
+      console.log("Fetching zonas from:", url);
 
       const response = await fetch(url, {
         method: "GET",
@@ -114,15 +114,15 @@ export class ZonaService {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`Error HTTP: ${response.status} - ${errorText}`)
-        throw new Error(`Error HTTP: ${response.status}`)
+        const errorText = await response.text();
+        console.error(`Error HTTP: ${response.status} - ${errorText}`);
+        throw new Error(`Error HTTP: ${response.status}`);
       }
 
-      const result = await response.json()
+      const result = await response.json();
 
       // Transformar los datos para mantener compatibilidad con la interfaz existente
       const zonas = result.data.map((zona: any) => ({
@@ -130,21 +130,21 @@ export class ZonaService {
         nombre: zona.nombre,
         estado: zona.estado ? "Activa" : "Inactiva",
         fechaCreacion: zona.fecha_creacion,
-      }))
+      }));
 
       const pagination = {
         currentPage: result.meta.current_page,
         totalPages: result.meta.last_page,
         total: result.meta.total,
         links: result.meta.links,
-      }
+      };
 
-      return { zonas, pagination }
+      return { zonas, pagination };
     } catch (error) {
-      console.error("Error al obtener zonas:", error)
+      console.error("Error al obtener zonas:", error);
 
       // En caso de error, devolver datos mock para evitar que la UI se rompa
-      console.warn("Usando datos mock debido a un error en la API")
+      console.warn("Usando datos mock debido a un error en la API");
       return {
         zonas: [...this.zonas],
         pagination: {
@@ -152,54 +152,54 @@ export class ZonaService {
           totalPages: 1,
           total: this.zonas.length,
         },
-      }
+      };
     }
   }
 
   static getById(id: number): Promise<Zona | undefined> {
-    const zona = this.zonas.find((z) => z.id === id)
-    return Promise.resolve(zona)
+    const zona = this.zonas.find((z) => z.id === id);
+    return Promise.resolve(zona);
   }
 
   static create(zona: Omit<Zona, "id">): Promise<Zona> {
-    const newId = Math.max(...this.zonas.map((z) => z.id)) + 1
-    const newZona = { ...zona, id: newId }
-    this.zonas.push(newZona)
-    return Promise.resolve(newZona)
+    const newId = Math.max(...this.zonas.map((z) => z.id)) + 1;
+    const newZona = { ...zona, id: newId };
+    this.zonas.push(newZona);
+    return Promise.resolve(newZona);
   }
 
   static update(id: number, zona: Partial<Zona>): Promise<Zona | undefined> {
-    const index = this.zonas.findIndex((z) => z.id === id)
+    const index = this.zonas.findIndex((z) => z.id === id);
     if (index === -1) {
-      return Promise.resolve(undefined)
+      return Promise.resolve(undefined);
     }
 
-    const updatedZona = { ...this.zonas[index], ...zona }
-    this.zonas[index] = updatedZona
-    return Promise.resolve(updatedZona)
+    const updatedZona = { ...this.zonas[index], ...zona };
+    this.zonas[index] = updatedZona;
+    return Promise.resolve(updatedZona);
   }
 
   static toggleEstado(id: number): Promise<Zona | undefined> {
-    const index = this.zonas.findIndex((z) => z.id === id)
+    const index = this.zonas.findIndex((z) => z.id === id);
     if (index === -1) {
-      return Promise.resolve(undefined)
+      return Promise.resolve(undefined);
     }
 
-    const zona = this.zonas[index]
-    const nuevoEstado = zona.estado === "Activa" ? "Inactiva" : "Activa"
+    const zona = this.zonas[index];
+    const nuevoEstado = zona.estado === "Activa" ? "Inactiva" : "Activa";
 
-    const updatedZona = { ...zona, estado: nuevoEstado }
-    this.zonas[index] = updatedZona
-    return Promise.resolve(updatedZona)
+    const updatedZona = { ...zona, estado: nuevoEstado };
+    this.zonas[index] = updatedZona;
+    return Promise.resolve(updatedZona);
   }
 
   static delete(id: number): Promise<boolean> {
-    const index = this.zonas.findIndex((z) => z.id === id)
+    const index = this.zonas.findIndex((z) => z.id === id);
     if (index === -1) {
-      return Promise.resolve(false)
+      return Promise.resolve(false);
     }
 
-    this.zonas.splice(index, 1)
-    return Promise.resolve(true)
+    this.zonas.splice(index, 1);
+    return Promise.resolve(true);
   }
 }

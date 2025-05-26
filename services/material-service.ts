@@ -1,176 +1,256 @@
-import type { Material, MaterialesResponse } from "@/types/material"
+import { API, getApiUrl, getAuthToken } from "@/config/api-config";
+import type { Material } from "@/types/material";
+
+// Interfaz para los parámetros de búsqueda
+export interface MaterialSearchParams {
+  nombre?: string;
+  estado?: number;
+  page?: number;
+}
 
 export class MaterialService {
-  private static API_URL = "https://cidson.int.qaenv.dev/api"
-  private static TOKEN = "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad"
-
   static async getAll(
-    configuracionId = 9,
-    page = 1,
-    filters: { estado?: number; nombre?: string } = {},
-  ): Promise<MaterialesResponse> {
+    configuracionId: number,
+    params?: MaterialSearchParams
+  ): Promise<{
+    materiales: Material[];
+    pagination: any;
+  }> {
     try {
-      // Construir la URL base
-      let url = `${this.API_URL}/materiales/${configuracionId}?page=${page}`
+      // Obtener API URL y token de autenticación
+      const apiUrl = getApiUrl();
+      const token =
+        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
 
-      // Añadir filtros si se proporcionan
-      if (filters.estado !== undefined) {
-        url += `&estado=${filters.estado}`
+      // Validar que tenemos una URL base válida
+      if (!apiUrl) {
+        console.error("URL de API no definida");
+        throw new Error("URL de API no definida");
       }
 
-      if (filters.nombre) {
-        url += `&nombre=${encodeURIComponent(filters.nombre)}`
+      // Construir URL con parámetros de consulta
+      let url = `${apiUrl}/api/materiales/${configuracionId}`;
+
+      if (params) {
+        const queryParams = new URLSearchParams();
+        if (params.nombre) queryParams.append("nombre", params.nombre);
+        if (params.estado !== undefined)
+          queryParams.append("estado", params.estado.toString());
+        if (params.page) queryParams.append("page", params.page.toString());
+
+        const queryString = queryParams.toString();
+        if (queryString) {
+          url += `?${queryString}`;
+        }
       }
 
-      // Realizar la solicitud
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${this.TOKEN}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error al obtener materiales: ${response.status}`)
-      }
-
-      const data: MaterialesResponse = await response.json()
-      return data
-    } catch (error) {
-      console.error("Error al obtener materiales:", error)
-      throw error
-    }
-  }
-
-  static async getById(id: number): Promise<Material | undefined> {
-    try {
-      const url = `${this.API_URL}/materiales/detalle/${id}`
+      console.log("Fetching materiales from:", url);
 
       const response = await fetch(url, {
         method: "GET",
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${this.TOKEN}`,
+          Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Error al obtener material: ${response.status}`)
+        const errorText = await response.text();
+        console.error(`Error HTTP: ${response.status} - ${errorText}`);
+        throw new Error(`Error HTTP: ${response.status}`);
       }
 
-      const data = await response.json()
-      return data.data
+      const result = await response.json();
+
+      // Transformar los datos para mantener compatibilidad con la interfaz existente
+      const materiales = result.data.map((material: any) => ({
+        id: material.id,
+        nombre: material.nombre,
+        estado: material.estado,
+        fecha_creacion: material.fecha_creacion,
+      }));
+
+      const pagination = {
+        currentPage: result.meta.current_page,
+        totalPages: result.meta.last_page,
+        total: result.meta.total,
+        links: result.meta.links,
+      };
+
+      return { materiales, pagination };
     } catch (error) {
-      console.error("Error al obtener material:", error)
-      throw error
+      console.error("Error al obtener materiales:", error);
+      // En caso de error, devolver datos vacíos
+      return {
+        materiales: [],
+        pagination: {
+          currentPage: 1,
+          totalPages: 1,
+          total: 0,
+          links: [],
+        },
+      };
     }
   }
 
-  static async create(material: Omit<Material, "id">, configuracionId = 9): Promise<Material> {
+  static async create(
+    configuracionId: number,
+    material: Omit<Material, "id">
+  ): Promise<Material> {
     try {
-      const url = `${this.API_URL}/materiales/store/${configuracionId}`
+      const apiUrl = getApiUrl();
+      const token =
+        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
+
+      const url = `${apiUrl}/api/materiales/${configuracionId}`;
 
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${this.TOKEN}`,
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           nombre: material.nombre,
-          descripcion: material.descripcion || undefined,
+          estado: material.estado === "Activo" ? 1 : 0,
         }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Error al crear material: ${response.status}`)
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || `Error al crear material: ${response.statusText}`
+        );
       }
 
-      const data = await response.json()
-      return data.data
+      const result = await response.json();
+      return {
+        id: result.data.id,
+        nombre: result.data.nombre,
+        estado: result.data.estado,
+        fecha_creacion: result.data.fecha_creacion,
+      };
     } catch (error) {
-      console.error("Error al crear material:", error)
-      throw error
+      console.error("Error al crear material:", error);
+      throw error;
     }
   }
 
-  static async update(id: number, material: Partial<Material>): Promise<Material | undefined> {
+  static async update(
+    configuracionId: number,
+    id: number,
+    material: Partial<Material>
+  ): Promise<Material> {
     try {
-      // Actualizar la URL para usar el endpoint correcto
-      const url = `${this.API_URL}/materiales/update/${id}`
+      const apiUrl = getApiUrl();
+      const token =
+        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
+
+      const url = `${apiUrl}/api/materiales/${configuracionId}/${id}`;
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nombre: material.nombre,
+          estado: material.estado === "Activo" ? 1 : 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message ||
+            `Error al actualizar material: ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      return {
+        id: result.data.id,
+        nombre: result.data.nombre,
+        estado: result.data.estado,
+        fecha_creacion: result.data.fecha_creacion,
+      };
+    } catch (error) {
+      console.error("Error al actualizar material:", error);
+      throw error;
+    }
+  }
+
+  static async toggleEstado(
+    configuracionId: number,
+    id: number
+  ): Promise<Material> {
+    try {
+      const apiUrl = getApiUrl();
+      const token =
+        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
+
+      const url = `${apiUrl}/api/materiales/${configuracionId}/${id}/toggle`;
 
       const response = await fetch(url, {
         method: "PUT",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.TOKEN}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(material),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Error al actualizar material: ${response.status}`)
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message ||
+            `Error al cambiar estado del material: ${response.statusText}`
+        );
       }
 
-      const data = await response.json()
-      return data.data
+      const result = await response.json();
+      return {
+        id: result.data.id,
+        nombre: result.data.nombre,
+        estado: result.data.estado,
+        fecha_creacion: result.data.fecha_creacion,
+      };
     } catch (error) {
-      console.error("Error al actualizar material:", error)
-      throw error
+      console.error("Error al cambiar estado del material:", error);
+      throw error;
     }
   }
 
-  // Modificar el método toggleEstado para usar el endpoint destroy tanto para activar como para desactivar
-  static async toggleEstado(id: number): Promise<Material | undefined> {
+  static async delete(configuracionId: number, id: number): Promise<boolean> {
     try {
-      // Usar el mismo endpoint que delete pero con método DELETE
-      const url = `${this.API_URL}/materiales/destroy/${id}`
+      const apiUrl = getApiUrl();
+      const token =
+        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
+
+      const url = `${apiUrl}/api/materiales/${configuracionId}/${id}`;
 
       const response = await fetch(url, {
         method: "DELETE",
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${this.TOKEN}`,
+          Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Error al cambiar estado del material: ${response.status}`)
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message ||
+            `Error al eliminar material: ${response.statusText}`
+        );
       }
 
-      const data = await response.json()
-      return data.data
+      return true;
     } catch (error) {
-      console.error("Error al cambiar estado del material:", error)
-      throw error
-    }
-  }
-
-  static async delete(id: number): Promise<Material | undefined> {
-    try {
-      // Actualizado a usar el endpoint destroy
-      const url = `${this.API_URL}/materiales/destroy/${id}`
-
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${this.TOKEN}`,
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error al eliminar/desactivar material: ${response.status}`)
-      }
-
-      const data = await response.json()
-      return data.data
-    } catch (error) {
-      console.error("Error al eliminar/desactivar material:", error)
-      throw error
+      console.error("Error al eliminar material:", error);
+      return false;
     }
   }
 }
