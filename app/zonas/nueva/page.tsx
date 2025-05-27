@@ -1,69 +1,99 @@
 "use client";
 
-import type React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
-import { MaterialService } from "@/services/material-service";
-import type { Material } from "@/types/material";
+import { ZonaService } from "@/services/zona-service";
+import type { Zona } from "@/types/zona";
 
-export default function NuevoMaterialPage() {
+export default function NuevaZonaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // Obtener configuracionId y empresaId de los parámetros de la URL
-  const configuracionId = Number(searchParams.get("configuracionId"));
-  const empresaId = searchParams.get("empresaId");
+  const configuracionIdParam = searchParams.get("configuracionId");
+  const returnTo = searchParams.get("returnTo");
 
   const [nombre, setNombre] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [configuracionId, setConfiguracionId] = useState<number | null>(
+    configuracionIdParam ? Number(configuracionIdParam) : null
+  );
 
-  // Función para construir la URL para el enlace "Regresar"
-  const getBackUrl = () => {
-    const params = new URLSearchParams();
-    if (empresaId) params.append("empresaId", empresaId);
-    if (configuracionId)
-      params.append("configuracionId", configuracionId.toString());
-    return `/materiales${params.toString() ? `?${params.toString()}` : ""}`;
-  };
+  useEffect(() => {
+    if (!configuracionId) {
+      setError("No se proporcionó ID de configuración");
+    }
+  }, [configuracionId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!nombre.trim()) {
-      setError("El nombre del material es requerido");
-      return;
-    }
-
-    if (!configuracionId) {
-      setError(
-        "No se pudo obtener el ID de configuración. Por favor, intente nuevamente."
-      );
-      return;
-    }
+    setIsSubmitting(true);
 
     try {
-      setIsSubmitting(true);
+      if (!nombre.trim()) {
+        setError("El nombre de la zona es requerido");
+        return;
+      }
 
-      const nuevoMaterial: Omit<Material, "id"> = {
+      if (!configuracionId) {
+        setError("No se proporcionó ID de configuración");
+        return;
+      }
+
+      const zona: Omit<Zona, "id"> = {
         nombre: nombre.trim(),
         estado: true,
-        fecha_creacion: new Date().toISOString().split("T")[0],
+        configuracion_id: configuracionId,
       };
 
-      await MaterialService.create(configuracionId, nuevoMaterial);
+      await ZonaService.create(zona);
 
-      // Redirigir a la lista de materiales con los parámetros necesarios
-      router.push(getBackUrl());
+      // Construir la URL de retorno
+      if (returnTo) {
+        router.push(returnTo);
+      } else {
+        const queryParams = new URLSearchParams();
+        if (configuracionId) {
+          queryParams.set("configuracionId", configuracionId.toString());
+        }
+        const url = queryParams.toString()
+          ? `/zonas?${queryParams.toString()}`
+          : "/zonas";
+        router.push(url);
+      }
     } catch (error) {
-      console.error("Error al guardar el material:", error);
-      setError(
-        "El nombre del material ya existe. Por favor, utilice otro nombre."
-      );
+      console.error("Error al crear zona:", error);
+      if (error instanceof Error) {
+        if (error.message === "NOMBRE_DUPLICADO") {
+          setError(
+            "El nombre de la zona ya existe. Por favor, utilice otro nombre."
+          );
+        } else {
+          setError(
+            error.message ||
+              "Error al crear la zona. Por favor, intente nuevamente."
+          );
+        }
+      } else {
+        setError("Error al crear la zona. Por favor, intente nuevamente.");
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Función para construir la URL para el enlace "Regresar"
+  const getBackUrl = () => {
+    const queryParams = new URLSearchParams();
+    if (configuracionId) {
+      queryParams.append("configuracionId", configuracionId.toString());
+    }
+    if (returnTo) {
+      queryParams.append("returnTo", returnTo);
+    }
+    return `/zonas${
+      queryParams.toString() ? `?${queryParams.toString()}` : ""
+    }`;
   };
 
   return (
@@ -78,11 +108,16 @@ export default function NuevoMaterialPage() {
         </a>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mt-4">
-          Nuevo Material
+          Nueva Zona
         </h1>
         <p className="text-sm sm:text-base text-gray-600">
-          Crea un nuevo material para CIDSON.
+          Crea una nueva zona para CIDSON.
         </p>
+        {configuracionId && (
+          <p className="text-sm text-gray-500 mt-1">
+            Configuración ID: {configuracionId}
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-xl p-8 shadow-sm max-w-[800px] mx-auto">
@@ -93,7 +128,7 @@ export default function NuevoMaterialPage() {
                 type="text"
                 id="nombre"
                 name="nombre"
-                placeholder="Nombre Del Material"
+                placeholder="Nombre De La Zona"
                 value={nombre}
                 onChange={(e) => {
                   setNombre(e.target.value);
@@ -110,7 +145,7 @@ export default function NuevoMaterialPage() {
           <div className="flex justify-end mt-8">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !configuracionId}
               className="flex items-center justify-center bg-[#f5d433] text-[#303e65] font-medium px-6 py-2.5 rounded-full hover:bg-[#f0ca20] transition-colors disabled:opacity-70"
             >
               {isSubmitting ? (

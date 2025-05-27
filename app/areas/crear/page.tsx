@@ -1,69 +1,78 @@
 "use client";
 
-import type React from "react";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
-import { MaterialService } from "@/services/material-service";
-import type { Material } from "@/types/material";
+import { AreaService } from "@/services/area-service";
 
-export default function NuevoMaterialPage() {
+export default function CrearAreaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  // Obtener configuracionId y empresaId de los parámetros de la URL
-  const configuracionId = Number(searchParams.get("configuracionId"));
   const empresaId = searchParams.get("empresaId");
+  const returnToParam = searchParams.get("returnTo");
 
   const [nombre, setNombre] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Función para construir la URL para el enlace "Regresar"
-  const getBackUrl = () => {
-    const params = new URLSearchParams();
-    if (empresaId) params.append("empresaId", empresaId);
-    if (configuracionId)
-      params.append("configuracionId", configuracionId.toString());
-    return `/materiales${params.toString() ? `?${params.toString()}` : ""}`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!nombre.trim()) {
-      setError("El nombre del material es requerido");
+      setError("El nombre del área es requerido");
       return;
     }
 
-    if (!configuracionId) {
-      setError(
-        "No se pudo obtener el ID de configuración. Por favor, intente nuevamente."
-      );
+    if (!empresaId) {
+      setError("No se proporcionó ID de empresa");
       return;
     }
+
+    setIsSubmitting(true);
+    setError("");
 
     try {
-      setIsSubmitting(true);
-
-      const nuevoMaterial: Omit<Material, "id"> = {
+      const area = await AreaService.create({
         nombre: nombre.trim(),
-        estado: true,
-        fecha_creacion: new Date().toISOString().split("T")[0],
-      };
+        configuracion_id: Number(empresaId),
+      });
 
-      await MaterialService.create(configuracionId, nuevoMaterial);
+      if (area) {
+        // Redirigir a la página de áreas
+        const params = new URLSearchParams();
+        if (empresaId) params.append("empresaId", empresaId);
+        if (returnToParam) params.append("returnTo", returnToParam);
 
-      // Redirigir a la lista de materiales con los parámetros necesarios
-      router.push(getBackUrl());
+        router.push(`/areas?${params.toString()}`);
+      }
     } catch (error) {
-      console.error("Error al guardar el material:", error);
-      setError(
-        "El nombre del material ya existe. Por favor, utilice otro nombre."
-      );
+      console.error("Error al crear área:", error);
+      if (error instanceof Error) {
+        if (error.message.includes("ya existe")) {
+          setError(
+            "El nombre del área ya existe. Por favor, utilice otro nombre."
+          );
+        } else {
+          setError(
+            error.message ||
+              "Error al crear el área. Por favor, intente nuevamente."
+          );
+        }
+      } else {
+        setError("Error al crear el área. Por favor, intente nuevamente.");
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Función para construir la URL para el enlace "Regresar"
+  const getBackUrl = () => {
+    const params = new URLSearchParams();
+    if (empresaId) params.append("empresaId", empresaId);
+    if (returnToParam) params.append("returnTo", returnToParam);
+
+    return `/areas${params.toString() ? `?${params.toString()}` : ""}`;
   };
 
   return (
@@ -78,10 +87,10 @@ export default function NuevoMaterialPage() {
         </a>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mt-4">
-          Nuevo Material
+          Nueva Área
         </h1>
         <p className="text-sm sm:text-base text-gray-600">
-          Crea un nuevo material para CIDSON.
+          Crea una nueva área para CIDSON.
         </p>
       </div>
 
@@ -93,7 +102,7 @@ export default function NuevoMaterialPage() {
                 type="text"
                 id="nombre"
                 name="nombre"
-                placeholder="Nombre Del Material"
+                placeholder="Nombre Del Área"
                 value={nombre}
                 onChange={(e) => {
                   setNombre(e.target.value);

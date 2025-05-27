@@ -1,121 +1,137 @@
-"use client"
+"use client";
 
-import { useState, useEffect, type KeyboardEvent } from "react"
-import { Filter, Plus, Search, ArrowLeft } from "lucide-react"
-import type { Metodo, MetodoResponse } from "@/types/metodo"
-import { MetodoService } from "@/services/metodo-service"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, type KeyboardEvent } from "react";
+import { Filter, Plus, Search, ArrowLeft } from "lucide-react";
+import type { Metodo, MetodoResponse } from "@/types/metodo";
+import { MetodoService } from "@/services/metodo-service";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function MetodosModule() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const empresaId = searchParams.get("empresaId")
-  const [filtros, setFiltros] = useState<string[]>([])
-  const [searchInputValue, setSearchInputValue] = useState("") // Valor del input
-  const [searchTerm, setSearchTerm] = useState("") // Término de búsqueda aplicado
-  const [metodos, setMetodos] = useState<Metodo[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [metaData, setMetaData] = useState<MetodoResponse["meta"] | null>(null)
-  const [links, setLinks] = useState<MetodoResponse["links"] | null>(null)
-  const [estadoFiltro, setEstadoFiltro] = useState<number | undefined>(undefined)
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const empresaId = searchParams.get("empresaId");
+  const [filtros, setFiltros] = useState<string[]>([]);
+  const [searchInputValue, setSearchInputValue] = useState(""); // Valor del input
+  const [searchTerm, setSearchTerm] = useState(""); // Término de búsqueda aplicado
+  const [metodos, setMetodos] = useState<Metodo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [metaData, setMetaData] = useState<MetodoResponse["meta"] | null>(null);
+  const [links, setLinks] = useState<MetodoResponse["links"] | null>(null);
+  const [estadoFiltro, setEstadoFiltro] = useState<number | undefined>(
+    undefined
+  );
 
   // Cargar métodos
   useEffect(() => {
     const fetchMetodos = async () => {
       try {
-        setIsLoading(true)
-        setError(null)
+        setIsLoading(true);
+        setError(null);
 
         if (!empresaId) {
-          console.log("No se proporcionó empresaId, no se pueden cargar métodos")
-          setMetodos([])
-          setIsLoading(false)
-          return
+          console.log(
+            "No se proporcionó empresaId, no se pueden cargar métodos"
+          );
+          setMetodos([]);
+          setIsLoading(false);
+          return;
         }
 
         // Cargar los métodos con el servicio actualizado, pasando el filtro de estado
-        const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm, estadoFiltro)
-        console.log("Respuesta de API:", response)
+        const response = await MetodoService.getAll(
+          Number(empresaId),
+          currentPage,
+          searchTerm,
+          estadoFiltro
+        );
+        console.log("Respuesta de API:", response);
 
         if (response && response.data) {
-          setMetodos(response.data)
+          setMetodos(response.data);
 
           if (response.meta) {
-            setMetaData(response.meta)
-            setTotalPages(response.meta.last_page)
+            setMetaData(response.meta);
+            setTotalPages(response.meta.last_page);
           }
 
           if (response.links) {
-            setLinks(response.links)
+            setLinks(response.links);
           }
         } else {
-          console.error("Respuesta de API inválida:", response)
-          setError("La respuesta de la API no tiene el formato esperado")
-          setMetodos([])
+          console.error("Respuesta de API inválida:", response);
+          setError("La respuesta de la API no tiene el formato esperado");
+          setMetodos([]);
         }
       } catch (error) {
-        console.error("Error al cargar métodos:", error)
-        setError("Error al cargar los métodos. Por favor, intente nuevamente.")
-        setMetodos([])
+        console.error("Error al cargar métodos:", error);
+        setError("Error al cargar los métodos. Por favor, intente nuevamente.");
+        setMetodos([]);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    fetchMetodos()
-  }, [empresaId, currentPage, searchTerm, estadoFiltro])
+    fetchMetodos();
+  }, [empresaId, currentPage, searchTerm, estadoFiltro]);
 
   // Actualizar el filtro de estado cuando cambian los filtros seleccionados
   useEffect(() => {
     // Determinar el valor del filtro de estado basado en los filtros seleccionados
     if (filtros.includes("1") && !filtros.includes("2")) {
       // Solo activos
-      setEstadoFiltro(1)
+      setEstadoFiltro(1);
     } else if (!filtros.includes("1") && filtros.includes("2")) {
       // Solo inactivos
-      setEstadoFiltro(0)
+      setEstadoFiltro(0);
     } else {
       // Ambos o ninguno (mostrar todos)
-      setEstadoFiltro(undefined)
+      setEstadoFiltro(undefined);
     }
 
     // Resetear a la primera página cuando cambian los filtros
-    setCurrentPage(1)
-  }, [filtros])
+    setCurrentPage(1);
+  }, [filtros]);
 
   const toggleFiltro = (filtro: string) => {
     if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro))
+      setFiltros(filtros.filter((f) => f !== filtro));
     } else {
-      setFiltros([...filtros, filtro])
+      setFiltros([...filtros, filtro]);
     }
-  }
+  };
 
   const limpiarFiltros = () => {
-    setFiltros([])
-    setSearchInputValue("")
-    setSearchTerm("")
-    setEstadoFiltro(undefined)
-  }
+    setFiltros([]);
+    setSearchInputValue("");
+    setSearchTerm("");
+    setEstadoFiltro(undefined);
+  };
 
   // Actualizar la función handleToggleEstado para usar el método del servicio
   const handleToggleEstado = async (id: number) => {
     try {
-      await MetodoService.toggleEstado(id)
+      await MetodoService.toggleEstado(id);
       // Recargar la página actual después de cambiar el estado
-      const response = await MetodoService.getAll(Number(empresaId), currentPage, searchTerm, estadoFiltro)
+      const response = await MetodoService.getAll(
+        Number(empresaId),
+        currentPage,
+        searchTerm,
+        estadoFiltro
+      );
       if (response && response.data) {
-        setMetodos(response.data)
+        setMetodos(response.data);
       }
     } catch (error) {
-      console.error("Error al cambiar estado:", error)
-      setError("Error al cambiar el estado del método. Por favor, intente nuevamente.")
+      console.error("Error al cambiar estado:", error);
+      setError(
+        "Error al cambiar el estado del método. Por favor, intente nuevamente."
+      );
     }
-  }
+  };
 
   const handleEditMetodo = (metodo: Metodo) => {
     // Codificar los datos del método como parámetros de URL
@@ -125,27 +141,31 @@ export default function MetodosModule() {
         nombre: metodo.nombre,
         descripcion: metodo.descripcion,
         estado: metodo.estado,
-      }),
-    )
+      })
+    );
 
-    router.push(`/metodos/editar/${metodo.id}?empresaId=${empresaId || ""}&data=${metodoData}`)
-  }
+    router.push(
+      `/metodos/editar/${metodo.id}?empresaId=${
+        empresaId || ""
+      }&data=${metodoData}`
+    );
+  };
 
   // Manejar la búsqueda cuando se presiona Enter
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      e.preventDefault()
-      setSearchTerm(searchInputValue)
-      setCurrentPage(1) // Resetear a la primera página al buscar
+      e.preventDefault();
+      setSearchTerm(searchInputValue);
+      setCurrentPage(1); // Resetear a la primera página al buscar
     }
-  }
+  };
 
   // Paginación
   const goToPage = (page: number) => {
     if (page > 0 && page <= totalPages) {
-      setCurrentPage(page)
+      setCurrentPage(page);
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -155,7 +175,7 @@ export default function MetodosModule() {
           <p className="mt-4 text-gray-600">Cargando información...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -164,25 +184,35 @@ export default function MetodosModule() {
         <div className="text-center">
           <div className="text-red-500 text-xl mb-4">⚠️ Error</div>
           <p className="text-gray-700 mb-4">{error}</p>
-          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-[#303e65] text-white rounded-md">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-[#303e65] text-white rounded-md"
+          >
             Reintentar
           </button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
       {/* Botón de regresar a empresas */}
-      <Link href="/empresas" className="inline-flex items-center text-[#303e65] mb-6">
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Regresar
-      </Link>
+      <button
+        onClick={() => router.push(`/empresas/catalogos/${empresaId}`)}
+        className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
+      >
+        <ArrowLeft className="mr-1 h-4 w-4" />
+        <span>Volver</span>
+      </button>
 
       <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Método</h1>
-        <p className="text-sm sm:text-base text-gray-600">Administra los métodos con los que trabaja CIDSON.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
+          Método
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600">
+          Administra los métodos con los que trabaja CIDSON.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
@@ -192,7 +222,9 @@ export default function MetodosModule() {
             <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
               {metaData ? metaData.total : metodos.length}
             </span>
-            <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
+            <span className="text-sm sm:text-base text-gray-600 font-medium">
+              REGISTROS
+            </span>
           </div>
 
           {/* Barra de búsqueda, filtros y botón nuevo método */}
@@ -218,7 +250,8 @@ export default function MetodosModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activos{" "}
+                  {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -227,7 +260,8 @@ export default function MetodosModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivos{" "}
+                  {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -248,7 +282,8 @@ export default function MetodosModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Activos {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activos{" "}
+                {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -257,7 +292,8 @@ export default function MetodosModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Inactivos {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivos{" "}
+                {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -271,7 +307,9 @@ export default function MetodosModule() {
 
             {/* Botón de Nuevo Método */}
             <Link
-              href={`/metodos/nuevo${empresaId ? `?empresaId=${empresaId}` : ""}`}
+              href={`/metodos/nuevo${
+                empresaId ? `?empresaId=${empresaId}` : ""
+              }`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nuevo Método
@@ -286,22 +324,34 @@ export default function MetodosModule() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f4f6fb]">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Descripción Del Método</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">
+                  Nombre
+                </th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">
+                  Descripción Del Método
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Estado
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
               {metodos.map((metodo) => (
                 <tr key={metodo.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{metodo.nombre}</td>
-                  <td className="py-3 px-4 text-gray-800">{metodo.descripcion}</td>
+                  <td className="py-3 px-4 text-gray-800">
+                    {metodo.descripcion}
+                  </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          metodo.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          metodo.estado
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
                         {metodo.estado ? "Activa" : "Inactiva"}
@@ -316,7 +366,13 @@ export default function MetodosModule() {
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
                         aria-label="Editar"
                       >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
                           <path
                             d="M8.90469 3.76136L12.2385 7.09513L4.99932 14.3343L2.02701 14.6624C1.6291 14.7064 1.29291 14.3699 1.33718 13.972L1.6679 10.9976L8.90469 3.76136ZM14.3004 3.26502L12.7351 1.6997C12.2468 1.21143 11.4549 1.21143 10.9666 1.6997L9.494 3.17232L12.8278 6.50608L14.3004 5.03346C14.7887 4.54494 14.7887 3.75329 14.3004 3.26502Z"
                             fill="#2C4874"
@@ -368,8 +424,13 @@ export default function MetodosModule() {
 
         {metodos.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No se encontraron métodos con los filtros aplicados</p>
-            <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
+            <p className="text-gray-500 text-lg">
+              No se encontraron métodos con los filtros aplicados
+            </p>
+            <button
+              className="mt-4 px-4 py-2 rounded-md border border-gray-300"
+              onClick={limpiarFiltros}
+            >
               Limpiar filtros
             </button>
           </div>
@@ -399,23 +460,29 @@ export default function MetodosModule() {
 
               {/* Números de página */}
               {metaData.links
-                .filter((link) => !link.label.includes("Previous") && !link.label.includes("Next"))
+                .filter(
+                  (link) =>
+                    !link.label.includes("Previous") &&
+                    !link.label.includes("Next")
+                )
                 .map((link, index) => {
                   // Intentar convertir la etiqueta a un número
-                  const pageNumber = Number.parseInt(link.label)
-                  if (isNaN(pageNumber)) return null
+                  const pageNumber = Number.parseInt(link.label);
+                  if (isNaN(pageNumber)) return null;
 
                   return (
                     <button
                       key={index}
                       onClick={() => goToPage(pageNumber)}
                       className={`px-3 py-1 text-sm rounded-md ${
-                        link.active ? "bg-[#303e65] text-white" : "text-gray-500"
+                        link.active
+                          ? "bg-[#303e65] text-white"
+                          : "text-gray-500"
                       }`}
                     >
                       {link.label}
                     </button>
-                  )
+                  );
                 })}
 
               {/* Siguiente */}
@@ -440,5 +507,5 @@ export default function MetodosModule() {
         )}
       </div>
     </div>
-  )
+  );
 }

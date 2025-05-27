@@ -1,121 +1,101 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, Save } from "lucide-react"
-import Link from "next/link"
-import { MaterialService } from "@/services/material-service"
+import type React from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { ArrowLeft, Save } from "lucide-react";
+import Link from "next/link";
+import { MaterialService } from "@/services/material-service";
+import { getAuthToken } from "@/config/api-config";
 
 export default function EditarMaterialPage() {
-  const router = useRouter()
-  const params = useParams()
-  const id = Number(params.id)
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const id = Number(params.id);
+
+  const empresaId = searchParams.get("empresaId");
+  const configuracionId = searchParams.get("configuracionId");
+  const nombreParam = searchParams.get("nombre");
+  const estadoParam = searchParams.get("estado");
+  const fechaCreacionParam = searchParams.get("fecha_creacion");
 
   const [formData, setFormData] = useState({
-    nombre: "",
-  })
-  const [errors, setErrors] = useState({
-    nombre: "",
-  })
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+    nombre: nombreParam || "",
+    estado: estadoParam === "1",
+    fecha_creacion: fechaCreacionParam || "",
+  });
+  const [errors, setErrors] = useState({ nombre: "" });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchMaterial = async () => {
-      try {
-        setIsLoading(true)
-
-        // Obtener los materiales desde localStorage
-        const materialesString = localStorage.getItem("materiales")
-
-        if (materialesString) {
-          const materiales = JSON.parse(materialesString)
-          const material = materiales.find((m: any) => m.id === id)
-
-          if (material) {
-            setFormData({
-              nombre: material.nombre || "",
-            })
-          } else {
-            // Si no se encuentra el material en localStorage, redirigir a la lista
-            router.push("/materiales")
-          }
-        } else {
-          // Si no hay materiales en localStorage, redirigir a la lista
-          router.push("/materiales")
-        }
-      } catch (error) {
-        console.error("Error al cargar el material:", error)
-      } finally {
-        setIsLoading(false)
-      }
+    if (!empresaId || !configuracionId || !id || isNaN(id)) {
+      console.error("Faltan parámetros requeridos:", {
+        empresaId,
+        configuracionId,
+        id,
+      });
+      router.push("/empresas");
+      return;
     }
 
-    if (id) {
-      fetchMaterial()
-    }
-  }, [id, router])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
-
-    // Limpiar error al cambiar el valor
-    if (errors[name as keyof typeof errors]) {
-      setErrors({
-        ...errors,
-        [name]: "",
-      })
-    }
-  }
-
-  const validateForm = (): boolean => {
-    let isValid = true
-    const newErrors = {
-      nombre: "",
+    const token = getAuthToken();
+    if (!token) {
+      console.error("No hay token de autenticación");
+      router.push("/login");
+      return;
     }
 
-    if (!formData.nombre.trim()) {
-      newErrors.nombre = "El nombre del material es requerido"
-      isValid = false
-    }
-
-    setErrors(newErrors)
-    return isValid
-  }
+    // Ya no necesitamos cargar el material porque tenemos todos los datos en los parámetros
+    setIsLoading(false);
+  }, [id, empresaId, configuracionId, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!validateForm()) {
-      return
+    if (!formData.nombre.trim()) {
+      setErrors({ nombre: "El nombre del material es requerido" });
+      return;
     }
 
     try {
-      setIsSubmitting(true)
-
-      // Enviar solo el nombre según la API
-      await MaterialService.update(id, {
+      setIsSubmitting(true);
+      await MaterialService.update(Number(configuracionId), id, {
         nombre: formData.nombre.trim(),
-      })
+        estado: formData.estado,
+        fecha_creacion: formData.fecha_creacion,
+      });
 
-      // Redirigir a la lista de materiales
-      router.push("/materiales")
+      // Construir la URL de retorno con los parámetros básicos
+      const params = new URLSearchParams();
+      if (empresaId) params.append("empresaId", empresaId);
+      if (configuracionId) params.append("configuracionId", configuracionId);
+
+      router.push(`/materiales?${params.toString()}`);
     } catch (error) {
-      console.error("Error al actualizar el material:", error)
-      setErrors({
-        ...errors,
-        nombre: "El nombre del material ya existe. Por favor, utilice otro nombre.",
-      })
-    } finally {
-      setIsSubmitting(false)
+      console.error("Error al actualizar el material:", error);
+      if (error instanceof Error && error.message === "NOMBRE_DUPLICADO") {
+        setErrors({
+          nombre:
+            "El nombre del material ya existe. Por favor, utilice otro nombre.",
+        });
+      } else {
+        setErrors({
+          nombre:
+            "Error al actualizar el material. Por favor, intente nuevamente.",
+        });
+      }
+      setIsSubmitting(false);
     }
-  }
+  };
+
+  const handleRegresar = () => {
+    const params = new URLSearchParams();
+    if (empresaId) params.append("empresaId", empresaId);
+    if (configuracionId) params.append("configuracionId", configuracionId);
+    router.push(`/materiales?${params.toString()}`);
+  };
 
   if (isLoading) {
     return (
@@ -125,19 +105,26 @@ export default function EditarMaterialPage() {
           <p className="mt-4 text-gray-600">Cargando información...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
     <div className="bg-[#f4f6fb] min-h-screen">
       <div className="pl-8 pr-6 py-6 max-w-[1200px]">
-        <Link href="/materiales" className="inline-flex items-center text-[#303e65] mb-6">
+        <button
+          onClick={handleRegresar}
+          className="inline-flex items-center text-[#303e65] mb-6"
+        >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Regresar
-        </Link>
+        </button>
 
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Editar registro</h1>
-        <p className="text-gray-600 mb-8">Edita el nombre del material seleccionado.</p>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          Editar registro
+        </h1>
+        <p className="text-gray-600 mb-8">
+          Edita el nombre del material seleccionado.
+        </p>
 
         <div className="bg-white rounded-xl p-8 shadow-sm max-w-[800px] mx-auto">
           <form onSubmit={handleSubmit}>
@@ -149,12 +136,20 @@ export default function EditarMaterialPage() {
                   name="nombre"
                   placeholder="Nombre Del Material"
                   value={formData.nombre}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData,
+                      nombre: e.target.value,
+                    });
+                    setErrors({ nombre: "" });
+                  }}
                   className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${
                     errors.nombre ? "ring-2 ring-red-500" : ""
                   }`}
                 />
-                {errors.nombre && <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>}
+                {errors.nombre && (
+                  <p className="mt-1 text-sm text-red-500">{errors.nombre}</p>
+                )}
               </div>
             </div>
 
@@ -181,5 +176,5 @@ export default function EditarMaterialPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

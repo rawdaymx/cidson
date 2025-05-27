@@ -1,13 +1,17 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
+import ZonasModule from "@/components/zonas/zonas-module";
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import ActividadesModule from "@/components/actividades/actividades-module";
 import { getAuthToken } from "@/config/api-config";
 
-export default function ActividadesPage() {
+export default function ZonasPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Obtener todos los parámetros de la URL
   const empresaId = searchParams.get("empresaId");
   const configuracionId = searchParams.get("configuracionId");
 
@@ -17,8 +21,6 @@ export default function ActividadesPage() {
   useEffect(() => {
     const checkParams = async () => {
       try {
-        console.log("Verificando parámetros:", { empresaId, configuracionId });
-
         // Verificar que tengamos los parámetros necesarios
         if (!empresaId) {
           console.error("Falta empresaId");
@@ -50,7 +52,6 @@ export default function ActividadesPage() {
           return;
         }
 
-        console.log("Verificación exitosa, procediendo a cargar el módulo");
         setIsLoading(false);
         setError(null);
       } catch (error) {
@@ -63,37 +64,36 @@ export default function ActividadesPage() {
     checkParams();
   }, [router, empresaId, configuracionId]);
 
-  if (isLoading) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#f4f6fb]">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-[#303e65] border-t-[#f5d433] rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando información...</p>
+          <p className="text-red-600 mb-4">{error}</p>
+          <Link href="/empresas" className="text-blue-600 hover:underline">
+            Volver a empresas
+          </Link>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#f4f6fb]">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
-          <p className="text-xl text-gray-700">{error}</p>
-          <button
-            onClick={() => router.back()}
-            className="mt-4 px-4 py-2 bg-[#303e65] text-white rounded-md"
-          >
-            Volver
-          </button>
+          <div className="w-16 h-16 border-4 border-[#303e65] border-t-[#f5d433] rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <ActividadesModule
-      empresaId={empresaId || undefined}
-      configuracionId={configuracionId || undefined}
-    />
+    <div className="bg-gray-50 min-h-screen">
+      <ZonasModule
+        empresaId={empresaId || undefined}
+        configuracionId={configuracionId || undefined}
+      />
+    </div>
   );
 }

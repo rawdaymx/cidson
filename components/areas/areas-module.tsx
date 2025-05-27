@@ -1,126 +1,308 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect, useCallback } from "react"
-import { Filter, Plus, Search, ArrowLeft } from "lucide-react"
-import type { Area } from "@/types/area"
-import { AreaService } from "@/services/area-service"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react";
+import { Filter, Plus, Search, ArrowLeft } from "lucide-react";
+import type { Area } from "@/types/area";
+import { AreaService } from "@/services/area-service";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { EmpresaService } from "@/services/empresa-service";
 
-export default function AreasModule() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const empresaId = searchParams.get("empresaId")
-  const [filtros, setFiltros] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [areas, setAreas] = useState<Area[]>([])
-  const [filteredAreas, setFilteredAreas] = useState<Area[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalItems, setTotalItems] = useState(0)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+interface AreasModuleProps {
+  empresaId?: string;
+  configuracionId?: string;
+}
 
-  // Cargar áreas con paginación
-  const fetchAreas = useCallback(
-    async (showLoading = true) => {
-      try {
-        if (showLoading) {
-          setIsLoading(true)
-        }
+export default function AreasModule({
+  empresaId,
+  configuracionId,
+}: AreasModuleProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pageParam = searchParams.get("page");
+  const returnToParam = searchParams.get("returnTo");
 
-        if (!empresaId) {
-          setAreas([])
-          setFilteredAreas([])
-          setIsLoading(false)
-          return
-        }
+  const getEstadoFilter = (filtrosActuales: string[]): number | undefined => {
+    if (filtrosActuales.includes("1") && !filtrosActuales.includes("2")) {
+      return 1; // Activas
+    } else if (
+      !filtrosActuales.includes("1") &&
+      filtrosActuales.includes("2")
+    ) {
+      return 0; // Inactivas
+    }
+    return undefined;
+  };
 
-        const configuracionId = Number.parseInt(empresaId)
-        const result = await AreaService.getAll(configuracionId, currentPage, searchTerm)
+  const [filtros, setFiltros] = useState<string[]>([]);
+  const [inputSearchTerm, setInputSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(
+    pageParam ? Number.parseInt(pageParam) : 1
+  );
+  const [configuracionIdState, setConfiguracionIdState] = useState<
+    number | undefined
+  >(configuracionId ? Number(configuracionId) : undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [paginationInfo, setPaginationInfo] = useState<{
+    totalPages: number;
+    totalItems: number;
+    links: Array<{ url: string | null; label: string; active: boolean }>;
+  }>({
+    totalPages: 1,
+    totalItems: 0,
+    links: [],
+  });
 
-        setAreas(result.areas)
-        setTotalPages(result.pagination.totalPages)
-        setTotalItems(result.pagination.totalItems)
-        setItemsPerPage(result.pagination.perPage)
-
-        // Aplicar filtros de estado (estos se aplican en el cliente)
-        let filtered = [...result.areas]
-
-        if (filtros.includes("1")) {
-          filtered = filtered.filter((area) => area.estado === "Activa")
-        }
-
-        if (filtros.includes("2")) {
-          filtered = filtered.filter((area) => area.estado === "Inactiva")
-        }
-
-        setFilteredAreas(filtered)
-      } catch (error) {
-        console.error("Error al cargar áreas:", error)
-        setAreas([])
-        setFilteredAreas([])
-      } finally {
-        if (showLoading) {
-          setIsLoading(false)
-        }
-      }
-    },
-    [empresaId, currentPage, searchTerm, filtros],
-  )
-
-  // Efecto para cargar áreas cuando cambian los parámetros relevantes
+  // Obtener el configuracion_id de la empresa si no se proporcionó como parámetro
   useEffect(() => {
-    fetchAreas(true)
-  }, [fetchAreas])
+    const fetchEmpresaConfiguracion = async () => {
+      // Si ya tenemos el configuracionId del parámetro, no necesitamos obtenerlo de la empresa
+      if (configuracionId) {
+        console.log("Usando configuracionId del parámetro:", configuracionId);
+        return;
+      }
+
+      if (!empresaId) {
+        setError("No se proporcionó ID de empresa");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        console.log("Obteniendo configuración para empresa ID:", empresaId);
+        const empresa = await EmpresaService.getById(Number(empresaId));
+        console.log("Empresa obtenida:", empresa);
+
+        if (empresa && empresa.configuracion_id) {
+          console.log(
+            "Configuración ID obtenido de la empresa:",
+            empresa.configuracion_id
+          );
+          setConfiguracionIdState(empresa.configuracion_id);
+        } else {
+          console.error(
+            "No se encontró configuracion_id en la empresa:",
+            empresa
+          );
+          setError("No se encontró la configuración de la empresa");
+        }
+      } catch (error) {
+        console.error(
+          "Error al obtener la configuración de la empresa:",
+          error
+        );
+        setError("Error al cargar la configuración de la empresa");
+      }
+    };
+
+    fetchEmpresaConfiguracion();
+  }, [empresaId, configuracionId]);
+
+  // Cargar áreas
+  useEffect(() => {
+    const fetchAreas = async () => {
+      if (!configuracionIdState) {
+        console.log("No hay configuracionId, no se pueden cargar áreas");
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Preparar filtros para la API
+        const apiFilters: { nombre?: string; estado?: number; page: number } = {
+          page: currentPage,
+        };
+
+        // Aplicar filtro de búsqueda
+        if (appliedSearchTerm) {
+          apiFilters.nombre = appliedSearchTerm;
+        }
+
+        // Aplicar filtros de estado
+        const estadoFilter = getEstadoFilter(filtros);
+        if (estadoFilter !== undefined) {
+          apiFilters.estado = estadoFilter;
+        }
+
+        console.log("Solicitando áreas con filtros:", apiFilters);
+        console.log("ConfiguracionId:", configuracionIdState);
+
+        const response = await AreaService.getAll(
+          configuracionIdState,
+          apiFilters
+        );
+        console.log("Respuesta completa de la API:", response);
+
+        if (!response.data || response.data.length === 0) {
+          console.log("No se encontraron áreas en la respuesta");
+          setAreas([]);
+          setPaginationInfo({
+            totalPages: 1,
+            totalItems: 0,
+            links: [],
+          });
+          return;
+        }
+
+        // Transformar los datos de la API al formato local
+        const areasTransformadas: Area[] = response.data.map((item) => ({
+          id: item.id,
+          nombre: item.nombre,
+          estado: item.estado ? "Activa" : "Inactiva",
+          fechaCreacion: item.fecha_creacion || "N/A",
+          configuracion_id: item.configuracion_id,
+        }));
+
+        setAreas(areasTransformadas);
+        setPaginationInfo({
+          totalPages: response.meta.last_page,
+          totalItems: response.meta.total,
+          links: response.meta.links || [],
+        });
+      } catch (error) {
+        console.error("Error al cargar áreas:", error);
+        if (error instanceof Error) {
+          if (error.message.includes("Unauthenticated")) {
+            router.push("/login");
+            return;
+          }
+          setError(
+            error.message ||
+              "Error al cargar las áreas. Por favor, intente nuevamente."
+          );
+        } else {
+          setError("Error al cargar las áreas. Por favor, intente nuevamente.");
+        }
+        setAreas([]); // Limpiar las áreas en caso de error
+        setPaginationInfo({
+          totalPages: 1,
+          totalItems: 0,
+          links: [],
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (configuracionIdState) {
+      fetchAreas();
+    } else {
+      setIsLoading(false);
+    }
+  }, [configuracionIdState, appliedSearchTerm, filtros, currentPage, router]);
 
   const toggleFiltro = (filtro: string) => {
-    if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro))
-    } else {
-      setFiltros([...filtros, filtro])
+    const newFiltros = filtros.includes(filtro)
+      ? filtros.filter((f) => f !== filtro)
+      : [...filtros, filtro];
+
+    setFiltros(newFiltros);
+    setCurrentPage(1);
+  };
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(inputSearchTerm);
+    setCurrentPage(1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSearch();
     }
-  }
+  };
 
   const limpiarFiltros = () => {
-    setFiltros([])
-    setSearchTerm("")
-    setCurrentPage(1)
-  }
+    setFiltros([]);
+    setInputSearchTerm("");
+    setAppliedSearchTerm("");
+    setCurrentPage(1);
+  };
 
-  // Modificar la función handleToggleEstado para recargar los datos sin mostrar el indicador de carga
-  const handleToggleEstado = async (id: number, currentEstado: string) => {
-    try {
-      // Llamar al servicio para cambiar el estado
-      await AreaService.toggleEstado(id)
-
-      // Recargar los datos sin mostrar el indicador de carga
-      await fetchAreas(false)
-    } catch (error) {
-      console.error("Error al cambiar estado:", error)
-      alert(
-        `Error al ${currentEstado === "Activa" ? "inactivar" : "activar"} el área: ${error instanceof Error ? error.message : "Error desconocido"}`,
-      )
+  const handleToggleEstado = async (id: number) => {
+    if (!configuracionIdState) {
+      setError("No se puede cambiar el estado sin un ID de configuración");
+      return;
     }
-  }
+
+    try {
+      await AreaService.toggleEstado(id);
+      // Recargar áreas después de cambiar el estado
+      const response = await AreaService.getAll(configuracionIdState, {
+        nombre: appliedSearchTerm || undefined,
+        page: currentPage,
+        estado: getEstadoFilter(filtros),
+      });
+
+      // Transformar los datos de la API al formato local
+      const areasTransformadas: Area[] = response.data.map((item) => ({
+        id: item.id,
+        nombre: item.nombre,
+        estado: item.estado ? "Activa" : "Inactiva",
+        fechaCreacion: item.fecha_creacion || "N/A",
+        configuracion_id: item.configuracion_id,
+      }));
+
+      setAreas(areasTransformadas);
+      setPaginationInfo({
+        totalPages: response.meta.last_page,
+        totalItems: response.meta.total,
+        links: response.meta.links || [],
+      });
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+      if (error instanceof Error) {
+        if (error.message.includes("Unauthenticated")) {
+          router.push("/login");
+          return;
+        }
+        setError(
+          error.message ||
+            "Error al cambiar el estado del área. Por favor, intente nuevamente."
+        );
+      } else {
+        setError(
+          "Error al cambiar el estado del área. Por favor, intente nuevamente."
+        );
+      }
+    }
+  };
 
   const handleEditArea = (id: number) => {
-    router.push(`/areas/editar/${id}${empresaId ? `?empresaId=${empresaId}` : ""}`)
-  }
+    const params = new URLSearchParams();
+    if (empresaId) params.append("empresaId", empresaId);
+    if (configuracionIdState)
+      params.append("configuracionId", configuracionIdState.toString());
+    if (returnToParam) params.append("returnTo", returnToParam);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setCurrentPage(1) // Resetear a la primera página al buscar
-    fetchAreas(true) // Buscar inmediatamente con indicador de carga
-  }
+    router.push(`/areas/editar/${id}?${params.toString()}`);
+  };
 
   const goToPage = (page: number) => {
-    if (page > 0 && page <= totalPages) {
-      setCurrentPage(page)
+    if (page > 0 && page <= paginationInfo.totalPages) {
+      setCurrentPage(page);
+
+      // Actualizar la URL con el nuevo número de página
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", page.toString());
+
+      // Mantener los otros parámetros
+      if (empresaId) params.set("empresaId", empresaId);
+      if (configuracionIdState)
+        params.set("configuracionId", configuracionIdState.toString());
+      if (returnToParam) params.set("returnTo", returnToParam);
+
+      // Actualizar la URL sin recargar la página
+      router.push(`/areas?${params.toString()}`, { scroll: false });
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -130,51 +312,68 @@ export default function AreasModule() {
           <p className="mt-4 text-gray-600">Cargando información...</p>
         </div>
       </div>
-    )
+    );
   }
-
-  // Para propósitos de depuración
-  console.log("Paginación:", { totalPages, currentPage, totalItems, itemsPerPage })
 
   return (
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
-      {/* Botón de Volver */}
-      <div className="mb-4">
-        <Link href="/empresas" className="inline-flex items-center text-[#303e65] hover:text-[#4a5d8f] font-medium">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Volver
-        </Link>
-      </div>
+      {/* Botón Volver */}
+      <button
+        onClick={() => router.push(`/empresas/catalogos/${empresaId}`)}
+        className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
+      >
+        <ArrowLeft className="mr-1 h-4 w-4" />
+        <span>Volver</span>
+      </button>
 
       <div className="mb-4 sm:mb-6 md:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">Áreas</h1>
-        <p className="text-sm sm:text-base text-gray-600">Administra las áreas con las que trabaja CIDSON.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
+          Áreas
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600">
+          Administra las áreas con las que trabaja CIDSON.
+        </p>
+        {configuracionIdState && (
+          <p className="text-sm text-gray-500">
+            Configuración ID: {configuracionIdState}
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
-            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">{totalItems}</span>
-            <span className="text-sm sm:text-base text-gray-600 font-medium">REGISTROS</span>
+            <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
+              {paginationInfo.totalItems}
+            </span>
+            <span className="text-sm sm:text-base text-gray-600 font-medium">
+              REGISTROS
+            </span>
           </div>
 
           {/* Barra de búsqueda, filtros y botón nueva área */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <form onSubmit={handleSearch} className="relative w-full sm:w-56">
+              <div className="relative w-full sm:w-56">
                 <input
                   type="text"
                   placeholder="Buscar área..."
                   className="pl-9 bg-gray-50 border border-gray-200 rounded-md w-full p-2 text-sm"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={inputSearchTerm}
+                  onChange={(e) => setInputSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyDown}
                 />
-                <button type="submit" className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400">
+                <button
+                  onClick={handleSearch}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Buscar"
+                >
                   <Search className="h-4 w-4" />
                 </button>
-              </form>
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+              </div>
 
               <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 <button
@@ -183,7 +382,8 @@ export default function AreasModule() {
                   }`}
                   onClick={() => toggleFiltro("1")}
                 >
-                  Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
+                  Activas{" "}
+                  {filtros.includes("1") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
@@ -192,13 +392,18 @@ export default function AreasModule() {
                   }`}
                   onClick={() => toggleFiltro("2")}
                 >
-                  Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
+                  Inactivas{" "}
+                  {filtros.includes("2") && <span className="ml-1">✓</span>}
                 </button>
 
                 <button
                   className="px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center"
                   onClick={limpiarFiltros}
-                  disabled={filtros.length === 0 && !searchTerm}
+                  disabled={
+                    filtros.length === 0 &&
+                    !inputSearchTerm &&
+                    !appliedSearchTerm
+                  }
                 >
                   <Filter className="mr-1 h-4 w-4" /> Limpiar
                 </button>
@@ -213,7 +418,8 @@ export default function AreasModule() {
                 }`}
                 onClick={() => toggleFiltro("1")}
               >
-                Activas {filtros.includes("1") && <span className="ml-1">✓</span>}
+                Activas{" "}
+                {filtros.includes("1") && <span className="ml-1">✓</span>}
               </button>
 
               <button
@@ -222,13 +428,16 @@ export default function AreasModule() {
                 }`}
                 onClick={() => toggleFiltro("2")}
               >
-                Inactivas {filtros.includes("2") && <span className="ml-1">✓</span>}
+                Inactivas{" "}
+                {filtros.includes("2") && <span className="ml-1">✓</span>}
               </button>
 
               <button
                 className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center justify-center"
                 onClick={limpiarFiltros}
-                disabled={filtros.length === 0 && !searchTerm}
+                disabled={
+                  filtros.length === 0 && !inputSearchTerm && !appliedSearchTerm
+                }
               >
                 <Filter className="mr-1 h-4 w-4" /> Limpiar
               </button>
@@ -236,7 +445,13 @@ export default function AreasModule() {
 
             {/* Botón de Nueva Área */}
             <Link
-              href={empresaId ? `/areas/nueva?empresaId=${empresaId}` : "/areas/nueva"}
+              href={`/areas/crear?${new URLSearchParams({
+                ...(empresaId ? { empresaId } : {}),
+                ...(configuracionIdState
+                  ? { configuracionId: configuracionIdState.toString() }
+                  : {}),
+                ...(returnToParam ? { returnTo: returnToParam } : {}),
+              }).toString()}`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nueva Área
@@ -251,20 +466,34 @@ export default function AreasModule() {
           <table className="w-full">
             <thead>
               <tr className="bg-[#f4f6fb]">
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Nombre</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Estado</th>
-                <th className="text-center py-3 px-4 font-medium text-gray-700">Acciones</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">
+                  Nombre
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Fecha Creación
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Estado
+                </th>
+                <th className="text-center py-3 px-4 font-medium text-gray-700">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filteredAreas.map((area) => (
+              {areas.map((area) => (
                 <tr key={area.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{area.nombre}</td>
+                  <td className="py-3 px-4 text-center text-gray-800">
+                    {area.fechaCreacion || "N/A"}
+                  </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-center">
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          area.estado === "Activa" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          area.estado === "Activa"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
                         {area.estado}
@@ -279,7 +508,13 @@ export default function AreasModule() {
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
                         aria-label="Editar"
                       >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
                           <path
                             d="M8.90469 3.76136L12.2385 7.09513L4.99932 14.3343L2.02701 14.6624C1.6291 14.7064 1.29291 14.3699 1.33718 13.972L1.6679 10.9976L8.90469 3.76136ZM14.3004 3.26502L12.7351 1.6997C12.2468 1.21143 11.4549 1.21143 10.9666 1.6997L9.494 3.17232L12.8278 6.50608L14.3004 5.03346C14.7887 4.54494 14.7887 3.75329 14.3004 3.26502Z"
                             fill="#2C4874"
@@ -289,9 +524,11 @@ export default function AreasModule() {
 
                       {/* Botón de activar/desactivar con SVG inline */}
                       <button
-                        onClick={() => handleToggleEstado(area.id, area.estado)}
+                        onClick={() => handleToggleEstado(area.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
-                        aria-label={area.estado === "Activa" ? "Desactivar" : "Activar"}
+                        aria-label={
+                          area.estado === "Activa" ? "Desactivar" : "Activar"
+                        }
                       >
                         {area.estado === "Activa" ? (
                           <svg
@@ -329,79 +566,84 @@ export default function AreasModule() {
           </table>
         </div>
 
-        {filteredAreas.length === 0 && (
+        {areas.length === 0 && !error && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No se encontraron áreas con los filtros aplicados</p>
-            <button className="mt-4 px-4 py-2 rounded-md border border-gray-300" onClick={limpiarFiltros}>
+            <p className="text-gray-500 text-lg">
+              No se encontraron áreas con los filtros aplicados
+            </p>
+            <button
+              className="mt-4 px-4 py-2 rounded-md border border-gray-300"
+              onClick={limpiarFiltros}
+            >
               Limpiar filtros
             </button>
           </div>
         )}
 
-        {/* Paginación - Siempre mostrar si hay más de 1 página */}
-        <div className="flex justify-center py-4 border-t border-gray-100">
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={() => goToPage(1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-            >
-              « Primera
-            </button>
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-            >
-              ‹ Anterior
-            </button>
+        {/* Paginación */}
+        {areas.length > 0 && paginationInfo.totalPages > 0 && (
+          <div className="flex justify-center py-4 border-t border-gray-100">
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => goToPage(1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+              >
+                « Primera
+              </button>
+              <button
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+              >
+                ‹ Anterior
+              </button>
 
-            {Array.from({ length: Math.max(totalPages, 1) }, (_, i) => {
-              // Mostrar páginas alrededor de la página actual
-              let pageNum
-              if (totalPages <= 5) {
-                pageNum = i + 1
-              } else if (currentPage <= 3) {
-                pageNum = i + 1
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i
-              } else {
-                pageNum = currentPage - 2 + i
-              }
+              {paginationInfo.links
+                .filter(
+                  (link) =>
+                    !link.label.includes("Previous") &&
+                    !link.label.includes("Next")
+                )
+                .map((link, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (link.url) {
+                        const url = new URL(link.url);
+                        const page = url.searchParams.get("page");
+                        if (page) {
+                          goToPage(Number.parseInt(page));
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1 text-sm rounded-md ${
+                      link.active ? "bg-[#303e65] text-white" : "text-gray-500"
+                    }`}
+                    disabled={!link.url}
+                  >
+                    {link.label}
+                  </button>
+                ))}
 
-              // Solo mostrar hasta 5 páginas
-              if (i >= 5) return null
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`px-3 py-1 text-sm rounded-md ${
-                    currentPage === pageNum ? "bg-[#303e65] text-white" : "text-gray-500"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              )
-            })}
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-            >
-              Siguiente ›
-            </button>
-            <button
-              onClick={() => goToPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
-            >
-              Última »
-            </button>
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === paginationInfo.totalPages}
+                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+              >
+                Siguiente ›
+              </button>
+              <button
+                onClick={() => goToPage(paginationInfo.totalPages)}
+                disabled={currentPage === paginationInfo.totalPages}
+                className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
+              >
+                Última »
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
-  )
+  );
 }

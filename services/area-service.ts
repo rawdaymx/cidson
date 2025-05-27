@@ -1,47 +1,115 @@
 import type { Area, AreaApiResponse, AreaItemApiResponse } from "@/types/area";
-import { HttpClient } from "@/services/http-client";
-import { API } from "@/config/api-config";
+import { API, getAuthToken } from "@/config/api-config";
 
 export class AreaService {
   // Método para obtener todas las áreas de una configuración (empresa) con paginación
   static async getAll(
     configuracionId?: number,
-    page = 1,
-    search = ""
-  ): Promise<Area[]> {
+    filters: { nombre?: string; estado?: number; page?: number } = {}
+  ): Promise<AreaApiResponse> {
     try {
+      console.log("=== Iniciando getAll de AreaService ===");
+      console.log("configuracionId:", configuracionId);
+      console.log("filters:", filters);
+
       if (!configuracionId) {
-        return [];
+        console.log(
+          "No se proporcionó configuracionId, retornando respuesta vacía"
+        );
+        return {
+          data: [],
+          links: {
+            first: "",
+            last: "",
+            prev: null,
+            next: null,
+          },
+          meta: {
+            current_page: 1,
+            from: 0,
+            last_page: 1,
+            links: [],
+            path: "",
+            per_page: 10,
+            to: 0,
+            total: 0,
+          },
+        };
       }
 
-      // Construir URL con parámetros de paginación y búsqueda
-      const url = `${API.ENDPOINTS.AREAS}/${configuracionId}`;
-      const params: Record<string, any> = { page };
-      if (search) {
-        params.search = search;
+      // Construir URL base
+      let url = `${API.BASE_URL}${API.ENDPOINTS.AREAS}/${configuracionId}`;
+      const queryParams = new URLSearchParams();
+
+      // Agregar parámetros de filtro
+      if (filters.nombre) {
+        queryParams.append("nombre", filters.nombre);
+      }
+      if (filters.estado !== undefined) {
+        queryParams.append("estado", filters.estado.toString());
+      }
+      if (filters.page) {
+        queryParams.append("page", filters.page.toString());
       }
 
-      console.log(`Obteniendo áreas para configuración ${configuracionId}`);
-      const response = await HttpClient.get<AreaApiResponse>(url, params);
-
-      if (!response || !response.data) {
-        console.log("No se encontraron áreas o respuesta vacía");
-        return [];
+      // Agregar los parámetros a la URL
+      const queryString = queryParams.toString();
+      if (queryString) {
+        url = `${url}?${queryString}`;
       }
 
-      // Transformar los datos de la API al formato local
-      const areas = response.data.map((item) => ({
-        id: item.id,
-        nombre: item.nombre,
-        estado: item.estado ? "Activa" : "Inactiva",
-        fechaCreacion: item.fecha_creacion || item.created_at, // Manejar ambos formatos
-        configuracion_id: item.configuracion_id,
-      }));
+      console.log("URL completa de la petición:", url);
 
-      console.log(`Se encontraron ${areas.length} áreas`);
-      return areas;
+      const token =
+        getAuthToken() || "26plhaQiSc4m6AA6LFUAIP6tllkA2ZdAXF3c5ov5f7a6f932";
+      console.log("Token a utilizar:", token);
+
+      console.log("Realizando petición fetch con headers:", {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      });
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log("Respuesta recibida:");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
+      console.log("Headers:", Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error en la respuesta. Texto del error:", errorText);
+
+        try {
+          const errorData = JSON.parse(errorText);
+          console.log("Error parseado como JSON:", errorData);
+          if (errorData.message) {
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          console.error("No se pudo parsear el error como JSON:", parseError);
+        }
+
+        throw new Error(
+          `Error al obtener áreas: ${response.status} - ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log("Datos recibidos de la API:", data);
+      return data;
     } catch (error) {
-      console.error("Error al obtener áreas:", error);
+      console.error("Error en getAll de AreaService:", error);
+      console.error(
+        "Stack trace:",
+        error instanceof Error ? error.stack : "No stack trace disponible"
+      );
       throw error;
     }
   }
@@ -49,22 +117,48 @@ export class AreaService {
   // Resto de métodos del servicio...
   static async getById(id: number): Promise<Area | undefined> {
     try {
-      const url = `${API.ENDPOINTS.AREAS}/show/${id}`;
-      const response = await HttpClient.get<AreaItemApiResponse>(url);
+      console.log("=== Iniciando getById de AreaService ===");
+      console.log("ID a buscar:", id);
 
-      if (!response || !response.data) {
-        return undefined;
+      const url = `${API.BASE_URL}${API.ENDPOINTS.AREAS}/show/${id}`;
+      console.log("URL de la petición:", url);
+
+      const token =
+        getAuthToken() || "26plhaQiSc4m6AA6LFUAIP6tllkA2ZdAXF3c5ov5f7a6f932";
+      console.log("Token a utilizar:", token);
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log("Respuesta recibida:");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error en la respuesta:", errorText);
+        throw new Error(
+          `Error al obtener área: ${response.status} - ${errorText}`
+        );
       }
 
+      const data = await response.json();
+      console.log("Datos recibidos:", data);
+
       return {
-        id: response.data.id,
-        nombre: response.data.nombre,
-        estado: response.data.estado ? "Activa" : "Inactiva",
-        fechaCreacion: response.data.fecha_creacion || response.data.created_at,
-        configuracion_id: response.data.configuracion_id,
+        id: data.data.id,
+        nombre: data.data.nombre,
+        estado: data.data.estado ? "Activa" : "Inactiva",
+        fechaCreacion: data.data.fecha_creacion || "N/A",
+        configuracion_id: data.data.configuracion_id,
       };
     } catch (error) {
-      console.error("Error al obtener área por ID:", error);
+      console.error("Error en getById:", error);
       return undefined;
     }
   }
@@ -74,148 +168,228 @@ export class AreaService {
     configuracion_id: number;
   }): Promise<Area> {
     try {
-      const url = `${API.ENDPOINTS.AREAS}/store/${areaData.configuracion_id}`;
-      const response = await HttpClient.post<AreaItemApiResponse>(url, {
-        nombre: areaData.nombre,
+      console.log("=== Iniciando create de AreaService ===");
+      console.log("Datos a enviar:", areaData);
+
+      const url = `${API.BASE_URL}${API.ENDPOINTS.AREAS}/store/${areaData.configuracion_id}`;
+      console.log("URL de la petición:", url);
+
+      const token =
+        getAuthToken() || "26plhaQiSc4m6AA6LFUAIP6tllkA2ZdAXF3c5ov5f7a6f932";
+      console.log("Token a utilizar:", token);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nombre: areaData.nombre,
+        }),
       });
 
-      if (!response || !response.data) {
-        throw new Error("Error al crear área");
-      }
+      console.log("Respuesta recibida:");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
 
-      return {
-        id: response.data.id,
-        nombre: response.data.nombre,
-        estado: response.data.estado ? "Activa" : "Inactiva",
-        fechaCreacion:
-          response.data.fecha_creacion || response.data.fecha_creacion,
-        configuracion_id: response.data.configuracion_id,
-      };
-    } catch (error: any) {
-      console.error("Error al crear área:", error);
-
-      // Si el error tiene un mensaje específico relacionado con nombre duplicado
-      if (error.response && error.response.data) {
-        if (
-          error.response.data.message &&
-          (error.response.data.message.includes("already been taken") ||
-            error.response.data.message.includes("ya existe"))
-        ) {
-          throw new Error(
-            "El nombre del área ya existe. Por favor, utilice otro nombre."
-          );
-        } else if (
-          error.response.data.errors &&
-          error.response.data.errors.nombre
-        ) {
-          // Si hay errores específicos para el campo nombre
-          throw new Error(error.response.data.errors.nombre[0]);
-        } else if (error.response.data.message) {
-          throw new Error(error.response.data.message);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error en la respuesta:", errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.log("Error parseado:", errorData);
+          if (errorData.message) {
+            if (errorData.message.includes("already exists")) {
+              throw new Error("NOMBRE_DUPLICADO");
+            }
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          console.error("Error al parsear respuesta de error:", parseError);
         }
-      }
 
-      // Si el error tiene un mensaje específico en el objeto error
-      if (
-        error.message &&
-        (error.message.includes("already been taken") ||
-          error.message.includes("ya existe"))
-      ) {
         throw new Error(
-          "El nombre del área ya existe. Por favor, utilice otro nombre."
+          `Error al crear área: ${response.status} - ${errorText}`
         );
       }
 
-      // Propagar el error original si no se puede determinar un mensaje específico
+      const data = await response.json();
+      console.log("Datos recibidos:", data);
+
+      return {
+        id: data.data.id,
+        nombre: data.data.nombre,
+        estado: data.data.estado ? "Activa" : "Inactiva",
+        fechaCreacion: data.data.fecha_creacion || "N/A",
+        configuracion_id: data.data.configuracion_id,
+      };
+    } catch (error) {
+      console.error("Error en create:", error);
       throw error;
     }
   }
 
-  static async update(
-    id: number,
-    areaData: { nombre: string; estado?: "Activa" | "Inactiva" }
-  ): Promise<Area> {
+  static async update(id: number, areaData: { nombre: string }): Promise<Area> {
     try {
-      const url = `${API.ENDPOINTS.AREAS}/update/${id}`;
-      const response = await HttpClient.put<AreaItemApiResponse>(url, {
-        nombre: areaData.nombre,
+      console.log("=== Iniciando update de AreaService ===");
+      console.log("ID a actualizar:", id);
+      console.log("Datos a enviar:", areaData);
+
+      const url = `${API.BASE_URL}${API.ENDPOINTS.AREAS}/update/${id}`;
+      console.log("URL de la petición:", url);
+
+      const token =
+        getAuthToken() || "26plhaQiSc4m6AA6LFUAIP6tllkA2ZdAXF3c5ov5f7a6f932";
+      console.log("Token a utilizar:", token);
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nombre: areaData.nombre,
+        }),
       });
 
-      if (!response || !response.data) {
-        throw new Error("Error al actualizar área");
-      }
+      console.log("Respuesta recibida:");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
 
-      return {
-        id: response.data.id,
-        nombre: response.data.nombre,
-        estado: response.data.estado ? "Activa" : "Inactiva",
-        fechaCreacion: response.data.fecha_creacion || response.data.created_at,
-        configuracion_id: response.data.configuracion_id,
-      };
-    } catch (error: any) {
-      console.error("Error al actualizar área:", error);
-
-      // Capturar y propagar el mensaje específico de error
-      if (error.response && error.response.data) {
-        if (error.response.data.message) {
-          // Si hay un mensaje general
-          throw new Error(error.response.data.message);
-        } else if (
-          error.response.data.errors &&
-          error.response.data.errors.nombre
-        ) {
-          // Si hay errores específicos para el campo nombre
-          throw new Error(error.response.data.errors.nombre[0]);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error en la respuesta:", errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.log("Error parseado:", errorData);
+          if (errorData.message) {
+            if (errorData.message.includes("already exists")) {
+              throw new Error("NOMBRE_DUPLICADO");
+            }
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          console.error("Error al parsear respuesta de error:", parseError);
         }
-      }
 
-      // Si el error tiene un mensaje específico en el objeto error
-      if (
-        error.message &&
-        error.message.includes("nombre has already been taken")
-      ) {
         throw new Error(
-          "El nombre del área ya existe. Por favor, utilice otro nombre."
+          `Error al actualizar área: ${response.status} - ${errorText}`
         );
       }
 
-      // Error genérico si no se puede determinar el mensaje específico
-      throw new Error(
-        "Error al actualizar el área. Por favor, intente nuevamente."
-      );
+      const data = await response.json();
+      console.log("Datos recibidos:", data);
+
+      return {
+        id: data.data.id,
+        nombre: data.data.nombre,
+        estado: data.data.estado ? "Activa" : "Inactiva",
+        fechaCreacion: data.data.fecha_creacion || "N/A",
+        configuracion_id: data.data.configuracion_id,
+      };
+    } catch (error) {
+      console.error("Error en update:", error);
+      throw error;
     }
   }
 
-  // Actualizar el método toggleEstado para usar el endpoint destroy
   static async toggleEstado(id: number): Promise<Area> {
     try {
-      // Primero obtenemos el área actual para saber su estado
-      const currentArea = await this.getById(id);
+      console.log("=== Iniciando toggleEstado de AreaService ===");
+      console.log("ID a cambiar estado:", id);
 
-      if (!currentArea) {
-        throw new Error("No se pudo encontrar el área");
+      const url = `${API.BASE_URL}${API.ENDPOINTS.AREAS}/destroy/${id}`;
+      console.log("URL de la petición:", url);
+
+      const token =
+        getAuthToken() || "26plhaQiSc4m6AA6LFUAIP6tllkA2ZdAXF3c5ov5f7a6f932";
+      console.log("Token a utilizar:", token);
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log("Respuesta recibida:");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error en la respuesta:", errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.log("Error parseado:", errorData);
+          if (errorData.message) {
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          console.error("Error al parsear respuesta de error:", parseError);
+        }
+
+        throw new Error(
+          `Error al cambiar estado del área: ${response.status} - ${errorText}`
+        );
       }
 
-      // Usamos el endpoint destroy para inactivar el área
-      await HttpClient.delete(`${API.ENDPOINTS.AREAS}/destroy/${id}`);
+      const data = await response.json();
+      console.log("Datos recibidos:", data);
 
-      // Como no tenemos la respuesta directa, construimos el objeto con el estado cambiado
       return {
-        ...currentArea,
-        estado: currentArea.estado === "Activa" ? "Inactiva" : "Activa",
+        id: data.data.id,
+        nombre: data.data.nombre,
+        estado: data.data.estado ? "Activa" : "Inactiva",
+        fechaCreacion: data.data.fecha_creacion || "N/A",
+        configuracion_id: data.data.configuracion_id,
       };
     } catch (error) {
-      console.error("Error al cambiar estado del área:", error);
+      console.error("Error en toggleEstado:", error);
       throw error;
     }
   }
 
   static async delete(id: number): Promise<boolean> {
     try {
-      await HttpClient.delete(`${API.ENDPOINTS.AREAS}/delete/${id}`);
+      console.log("=== Iniciando delete de AreaService ===");
+      console.log("ID a eliminar:", id);
+
+      const url = `${API.BASE_URL}${API.ENDPOINTS.AREAS}/delete/${id}`;
+      console.log("URL de la petición:", url);
+
+      const token =
+        getAuthToken() || "26plhaQiSc4m6AA6LFUAIP6tllkA2ZdAXF3c5ov5f7a6f932";
+      console.log("Token a utilizar:", token);
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log("Respuesta recibida:");
+      console.log("Status:", response.status);
+      console.log("Status Text:", response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error en la respuesta:", errorText);
+        throw new Error(
+          `Error al eliminar área: ${response.status} - ${errorText}`
+        );
+      }
+
       return true;
     } catch (error) {
-      console.error("Error al eliminar área:", error);
+      console.error("Error en delete:", error);
       return false;
     }
   }
