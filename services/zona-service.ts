@@ -1,113 +1,83 @@
 import type { Zona } from "@/types/zona";
-import { API, getApiUrl, getAuthToken } from "@/config/api-config";
+import { API, getAuthToken } from "@/config/api-config";
+
+interface ZonaApiResponse {
+  data: Array<{
+    id: number;
+    nombre: string;
+    estado: boolean;
+    fecha_creacion: string;
+    configuracion_id: number;
+  }>;
+  links: {
+    first: string;
+    last: string;
+    prev: string | null;
+    next: string | null;
+  };
+  meta: {
+    current_page: number;
+    from: number;
+    last_page: number;
+    links: Array<{
+      url: string | null;
+      label: string;
+      active: boolean;
+    }>;
+    path: string;
+    per_page: number;
+    to: number;
+    total: number;
+  };
+}
 
 export class ZonaService {
-  private static zonas: Zona[] = [
-    {
-      id: 1,
-      nombre: "Zona Norte",
-      estado: "Activa",
-      fechaCreacion: "01/01/2023",
-    },
-    {
-      id: 2,
-      nombre: "Zona Sur",
-      estado: "Activa",
-      fechaCreacion: "15/01/2023",
-    },
-    {
-      id: 3,
-      nombre: "Zona Este",
-      estado: "Activa",
-      fechaCreacion: "20/01/2023",
-    },
-    {
-      id: 4,
-      nombre: "Zona Oeste",
-      estado: "Activa",
-      fechaCreacion: "25/01/2023",
-    },
-    {
-      id: 5,
-      nombre: "Zona Central",
-      estado: "Activa",
-      fechaCreacion: "01/02/2023",
-    },
-    {
-      id: 6,
-      nombre: "Zona Metropolitana",
-      estado: "Inactiva",
-      fechaCreacion: "05/02/2023",
-    },
-    {
-      id: 7,
-      nombre: "Zona Costera",
-      estado: "Inactiva",
-      fechaCreacion: "10/02/2023",
-    },
-    {
-      id: 8,
-      nombre: "Zona Industrial",
-      estado: "Inactiva",
-      fechaCreacion: "15/02/2023",
-    },
-    {
-      id: 9,
-      nombre: "Zona Residencial",
-      estado: "Inactiva",
-      fechaCreacion: "20/02/2023",
-    },
-    {
-      id: 10,
-      nombre: "Zona Comercial",
-      estado: "Inactiva",
-      fechaCreacion: "25/02/2023",
-    },
-  ];
-
   static async getAll(
     configuracionId?: number,
-    page = 1,
-    filters: { nombre?: string; estado?: number } = {}
-  ): Promise<{ zonas: Zona[]; pagination: any }> {
+    filters: { nombre?: string; estado?: number; page?: number } = {}
+  ): Promise<ZonaApiResponse> {
     try {
       if (!configuracionId) {
-        // Si no hay configuracionId, devolver datos mock
         return {
-          zonas: [...this.zonas],
-          pagination: {
-            currentPage: 1,
-            totalPages: 1,
-            total: this.zonas.length,
+          data: [],
+          links: {
+            first: "",
+            last: "",
+            prev: null,
+            next: null,
+          },
+          meta: {
+            current_page: 1,
+            from: 0,
+            last_page: 1,
+            links: [],
+            path: "",
+            per_page: 10,
+            to: 0,
+            total: 0,
           },
         };
       }
 
-      // Obtener API URL y token de autenticación
-      const apiUrl = getApiUrl();
-      const token =
-        getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
+      let url = `${API.BASE_URL}/api/zonas/${configuracionId}`;
+      const queryParams = new URLSearchParams();
 
-      // Validar que tenemos una URL base válida
-      if (!apiUrl) {
-        console.error("URL de API no definida");
-        throw new Error("URL de API no definida");
-      }
-
-      // Construir URL con parámetros de consulta
-      let url = `${apiUrl}/api/zonas/${configuracionId}?page=${page}`;
-
-      // Añadir filtros si existen
       if (filters.nombre) {
-        url += `&nombre=${encodeURIComponent(filters.nombre)}`;
+        queryParams.append("nombre", filters.nombre);
       }
-
       if (filters.estado !== undefined) {
-        url += `&estado=${filters.estado}`;
+        queryParams.append("estado", filters.estado.toString());
+      }
+      if (filters.page) {
+        queryParams.append("page", filters.page.toString());
       }
 
-      console.log("Fetching zonas from:", url);
+      const queryString = queryParams.toString();
+      if (queryString) {
+        url = `${url}?${queryString}`;
+      }
 
+      const token = getAuthToken();
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -118,88 +88,168 @@ export class ZonaService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Error HTTP: ${response.status} - ${errorText}`);
-        throw new Error(`Error HTTP: ${response.status}`);
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.message) {
+            throw new Error(errorData.message);
+          }
+        } catch (parseError) {
+          console.error("No se pudo parsear el error como JSON:", parseError);
+        }
+        throw new Error(
+          `Error al obtener zonas: ${response.status} - ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error en getAll de ZonaService:", error);
+      throw error;
+    }
+  }
+
+  static async getById(id: number): Promise<Zona> {
+    try {
+      const url = `${API.BASE_URL}/api/zonas/show/${id}`;
+      const token = getAuthToken();
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error al obtener la zona: ${response.status}`);
       }
 
       const result = await response.json();
-
-      // Transformar los datos para mantener compatibilidad con la interfaz existente
-      const zonas = result.data.map((zona: any) => ({
-        id: zona.id,
-        nombre: zona.nombre,
-        estado: zona.estado ? "Activa" : "Inactiva",
-        fechaCreacion: zona.fecha_creacion,
-      }));
-
-      const pagination = {
-        currentPage: result.meta.current_page,
-        totalPages: result.meta.last_page,
-        total: result.meta.total,
-        links: result.meta.links,
-      };
-
-      return { zonas, pagination };
-    } catch (error) {
-      console.error("Error al obtener zonas:", error);
-
-      // En caso de error, devolver datos mock para evitar que la UI se rompa
-      console.warn("Usando datos mock debido a un error en la API");
       return {
-        zonas: [...this.zonas],
-        pagination: {
-          currentPage: 1,
-          totalPages: 1,
-          total: this.zonas.length,
-        },
+        id: Number(result.data.id),
+        nombre: result.data.nombre,
+        estado: Boolean(result.data.estado),
+        fecha_creacion: result.data.fecha_creacion,
+        configuracion_id: Number(result.data.configuracion_id),
       };
+    } catch (error) {
+      console.error("Error al obtener zona:", error);
+      throw error;
     }
   }
 
-  static getById(id: number): Promise<Zona | undefined> {
-    const zona = this.zonas.find((z) => z.id === id);
-    return Promise.resolve(zona);
-  }
+  static async create(zona: Omit<Zona, "id">): Promise<Zona> {
+    try {
+      const url = `${API.BASE_URL}/api/zonas/store/${zona.configuracion_id}`;
+      const token = getAuthToken();
 
-  static create(zona: Omit<Zona, "id">): Promise<Zona> {
-    const newId = Math.max(...this.zonas.map((z) => z.id)) + 1;
-    const newZona = { ...zona, id: newId };
-    this.zonas.push(newZona);
-    return Promise.resolve(newZona);
-  }
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nombre: zona.nombre,
+        }),
+      });
 
-  static update(id: number, zona: Partial<Zona>): Promise<Zona | undefined> {
-    const index = this.zonas.findIndex((z) => z.id === id);
-    if (index === -1) {
-      return Promise.resolve(undefined);
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.message === "NOMBRE_DUPLICADO") {
+          throw new Error("NOMBRE_DUPLICADO");
+        }
+        throw new Error(`Error al crear la zona: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        id: Number(result.data.id),
+        nombre: result.data.nombre,
+        estado: Boolean(result.data.estado),
+        fecha_creacion: result.data.fecha_creacion,
+        configuracion_id: Number(result.data.configuracion_id),
+      };
+    } catch (error) {
+      console.error("Error al crear zona:", error);
+      throw error;
     }
-
-    const updatedZona = { ...this.zonas[index], ...zona };
-    this.zonas[index] = updatedZona;
-    return Promise.resolve(updatedZona);
   }
 
-  static toggleEstado(id: number): Promise<Zona | undefined> {
-    const index = this.zonas.findIndex((z) => z.id === id);
-    if (index === -1) {
-      return Promise.resolve(undefined);
+  static async update(id: number, zona: Partial<Zona>): Promise<Zona> {
+    try {
+      const url = `${API.BASE_URL}/api/zonas/update/${id}`;
+      const token = getAuthToken();
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          nombre: zona.nombre,
+          estado: zona.estado,
+          configuracion_id: zona.configuracion_id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.message === "NOMBRE_DUPLICADO") {
+          throw new Error("NOMBRE_DUPLICADO");
+        }
+        throw new Error(`Error al actualizar la zona: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return {
+        id: Number(result.data.id),
+        nombre: result.data.nombre,
+        estado: Boolean(result.data.estado),
+        fecha_creacion: result.data.fecha_creacion,
+        configuracion_id: Number(result.data.configuracion_id),
+      };
+    } catch (error) {
+      console.error("Error al actualizar zona:", error);
+      throw error;
     }
-
-    const zona = this.zonas[index];
-    const nuevoEstado = zona.estado === "Activa" ? "Inactiva" : "Activa";
-
-    const updatedZona = { ...zona, estado: nuevoEstado };
-    this.zonas[index] = updatedZona;
-    return Promise.resolve(updatedZona);
   }
 
-  static delete(id: number): Promise<boolean> {
-    const index = this.zonas.findIndex((z) => z.id === id);
-    if (index === -1) {
-      return Promise.resolve(false);
-    }
+  static async toggleEstado(id: number): Promise<Zona> {
+    try {
+      const url = `${API.BASE_URL}/api/zonas/destroy/${id}`;
+      const token = getAuthToken();
 
-    this.zonas.splice(index, 1);
-    return Promise.resolve(true);
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Error al cambiar estado de la zona: ${response.status}`
+        );
+      }
+
+      const result = await response.json();
+      return {
+        id: Number(result.data.id),
+        nombre: result.data.nombre,
+        estado: Boolean(result.data.estado),
+        fecha_creacion: result.data.fecha_creacion,
+        configuracion_id: Number(result.data.configuracion_id),
+      };
+    } catch (error) {
+      console.error("Error al cambiar estado de la zona:", error);
+      throw error;
+    }
   }
 }

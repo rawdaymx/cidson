@@ -10,11 +10,10 @@ export interface Area {
 export interface AreaApiResponse {
   data: Array<{
     id: number;
-    configuracion_id: number;
     nombre: string;
     estado: boolean;
     fecha_creacion: string;
-    created_at?: string;
+    configuracion_id: number;
   }>;
   links: {
     first: string;
@@ -42,10 +41,17 @@ export interface AreaApiResponse {
 export interface AreaItemApiResponse {
   data: {
     id: number;
-    configuracion_id: number;
     nombre: string;
     estado: boolean;
     fecha_creacion: string;
-    created_at?: string;
+    configuracion_id: number;
   };
+}
+
+export interface AreaData {
+  id: number;
+  nombre: string;
+  estado: boolean;
+  fecha_creacion: string;
+  configuracion_id: number;
 }

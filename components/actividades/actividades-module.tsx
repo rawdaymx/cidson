@@ -231,6 +231,15 @@ export default function ActividadesModule({
     if (configuracionIdState)
       params.append("configuracionId", configuracionIdState.toString());
 
+    // Encontrar la actividad en el array de actividades
+    const actividad = actividades.find((act) => act.id === id);
+    if (actividad) {
+      // Añadir la información de la actividad a los parámetros
+      params.append("nombre", actividad.nombre);
+      params.append("estado", actividad.estado ? "1" : "0");
+      params.append("fecha_creacion", actividad.fecha_creacion || "");
+    }
+
     router.push(`/actividades/editar/${id}?${params.toString()}`);
   };
 

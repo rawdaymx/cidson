@@ -2,114 +2,209 @@
 
 import type React from "react";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Filter, Plus, Search, ArrowLeft } from "lucide-react";
 import type { Area } from "@/types/area";
 import { AreaService } from "@/services/area-service";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { EmpresaService } from "@/services/empresa-service";
 
-export default function AreasModule() {
+interface AreasModuleProps {
+  empresaId?: string;
+  configuracionId?: string;
+}
+
+export default function AreasModule({
+  empresaId,
+  configuracionId,
+}: AreasModuleProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const empresaId = searchParams.get("empresaId");
+  const pageParam = searchParams.get("page");
+  const returnToParam = searchParams.get("returnTo");
+
+  const getEstadoFilter = (filtrosActuales: string[]): number | undefined => {
+    if (filtrosActuales.includes("1") && !filtrosActuales.includes("2")) {
+      return 1; // Activas
+    } else if (
+      !filtrosActuales.includes("1") &&
+      filtrosActuales.includes("2")
+    ) {
+      return 0; // Inactivas
+    }
+    return undefined;
+  };
+
   const [filtros, setFiltros] = useState<string[]>([]);
   const [inputSearchTerm, setInputSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [areas, setAreas] = useState<Area[]>([]);
-  const [filteredAreas, setFilteredAreas] = useState<Area[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(
+    pageParam ? Number.parseInt(pageParam) : 1
+  );
+  const [configuracionIdState, setConfiguracionIdState] = useState<
+    number | undefined
+  >(configuracionId ? Number(configuracionId) : undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [paginationInfo, setPaginationInfo] = useState<{
+    totalPages: number;
+    totalItems: number;
+    links: Array<{ url: string | null; label: string; active: boolean }>;
+  }>({
+    totalPages: 1,
+    totalItems: 0,
+    links: [],
+  });
 
-  // Cargar áreas con paginación
-  const fetchAreas = useCallback(
-    async (showLoading = true) => {
+  // Obtener el configuracion_id de la empresa si no se proporcionó como parámetro
+  useEffect(() => {
+    const fetchEmpresaConfiguracion = async () => {
+      // Si ya tenemos el configuracionId del parámetro, no necesitamos obtenerlo de la empresa
+      if (configuracionId) {
+        console.log("Usando configuracionId del parámetro:", configuracionId);
+        return;
+      }
+
+      if (!empresaId) {
+        setError("No se proporcionó ID de empresa");
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        if (showLoading) {
-          setIsLoading(true);
+        console.log("Obteniendo configuración para empresa ID:", empresaId);
+        const empresa = await EmpresaService.getById(Number(empresaId));
+        console.log("Empresa obtenida:", empresa);
+
+        if (empresa && empresa.configuracion_id) {
+          console.log(
+            "Configuración ID obtenido de la empresa:",
+            empresa.configuracion_id
+          );
+          setConfiguracionIdState(empresa.configuracion_id);
+        } else {
+          console.error(
+            "No se encontró configuracion_id en la empresa:",
+            empresa
+          );
+          setError("No se encontró la configuración de la empresa");
+        }
+      } catch (error) {
+        console.error(
+          "Error al obtener la configuración de la empresa:",
+          error
+        );
+        setError("Error al cargar la configuración de la empresa");
+      }
+    };
+
+    fetchEmpresaConfiguracion();
+  }, [empresaId, configuracionId]);
+
+  // Cargar áreas
+  useEffect(() => {
+    const fetchAreas = async () => {
+      if (!configuracionIdState) {
+        console.log("No hay configuracionId, no se pueden cargar áreas");
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Preparar filtros para la API
+        const apiFilters: { nombre?: string; estado?: number; page: number } = {
+          page: currentPage,
+        };
+
+        // Aplicar filtro de búsqueda
+        if (appliedSearchTerm) {
+          apiFilters.nombre = appliedSearchTerm;
         }
 
-        if (!empresaId) {
+        // Aplicar filtros de estado
+        const estadoFilter = getEstadoFilter(filtros);
+        if (estadoFilter !== undefined) {
+          apiFilters.estado = estadoFilter;
+        }
+
+        console.log("Solicitando áreas con filtros:", apiFilters);
+        console.log("ConfiguracionId:", configuracionIdState);
+
+        const response = await AreaService.getAll(
+          configuracionIdState,
+          apiFilters
+        );
+        console.log("Respuesta completa de la API:", response);
+
+        if (!response.data || response.data.length === 0) {
+          console.log("No se encontraron áreas en la respuesta");
           setAreas([]);
-          setFilteredAreas([]);
-          setIsLoading(false);
+          setPaginationInfo({
+            totalPages: 1,
+            totalItems: 0,
+            links: [],
+          });
           return;
         }
 
-        const configuracionId = Number.parseInt(empresaId);
-        const result = await AreaService.getAll(
-          configuracionId,
-          currentPage,
-          appliedSearchTerm
-        );
+        // Transformar los datos de la API al formato local
+        const areasTransformadas: Area[] = response.data.map((item) => ({
+          id: item.id,
+          nombre: item.nombre,
+          estado: item.estado ? "Activa" : "Inactiva",
+          fechaCreacion: item.fecha_creacion || "N/A",
+          configuracion_id: item.configuracion_id,
+        }));
 
-        setAreas(result.areas);
-        setTotalPages(result.pagination.totalPages);
-        setTotalItems(result.pagination.totalItems);
-        setItemsPerPage(result.pagination.perPage);
-
-        // Aplicar filtros de estado
-        let filtered = [...result.areas];
-        if (filtros.includes("1")) {
-          filtered = filtered.filter((area) => area.estado === "Activa");
-        }
-        if (filtros.includes("2")) {
-          filtered = filtered.filter((area) => area.estado === "Inactiva");
-        }
-        setFilteredAreas(filtered);
+        setAreas(areasTransformadas);
+        setPaginationInfo({
+          totalPages: response.meta.last_page,
+          totalItems: response.meta.total,
+          links: response.meta.links || [],
+        });
       } catch (error) {
         console.error("Error al cargar áreas:", error);
-        setAreas([]);
-        setFilteredAreas([]);
-      } finally {
-        if (showLoading) {
-          setIsLoading(false);
+        if (error instanceof Error) {
+          if (error.message.includes("Unauthenticated")) {
+            router.push("/login");
+            return;
+          }
+          setError(
+            error.message ||
+              "Error al cargar las áreas. Por favor, intente nuevamente."
+          );
+        } else {
+          setError("Error al cargar las áreas. Por favor, intente nuevamente.");
         }
+        setAreas([]); // Limpiar las áreas en caso de error
+        setPaginationInfo({
+          totalPages: 1,
+          totalItems: 0,
+          links: [],
+        });
+      } finally {
+        setIsLoading(false);
       }
-    },
-    [empresaId, currentPage, appliedSearchTerm, filtros]
-  );
+    };
 
-  useEffect(() => {
-    fetchAreas(true);
-  }, [fetchAreas]);
+    if (configuracionIdState) {
+      fetchAreas();
+    } else {
+      setIsLoading(false);
+    }
+  }, [configuracionIdState, appliedSearchTerm, filtros, currentPage, router]);
 
   const toggleFiltro = (filtro: string) => {
-    setFiltros(
-      filtros.includes(filtro)
-        ? filtros.filter((f) => f !== filtro)
-        : [...filtros, filtro]
-    );
-  };
+    const newFiltros = filtros.includes(filtro)
+      ? filtros.filter((f) => f !== filtro)
+      : [...filtros, filtro];
 
-  const limpiarFiltros = () => {
-    setFiltros([]);
-    setInputSearchTerm("");
-    setAppliedSearchTerm("");
+    setFiltros(newFiltros);
     setCurrentPage(1);
-  };
-
-  const handleToggleEstado = async (id: number) => {
-    try {
-      await AreaService.toggleEstado(id);
-      await fetchAreas(false);
-    } catch (error) {
-      console.error("Error al cambiar estado:", error);
-      alert(
-        `Error al cambiar el estado del área: ${
-          error instanceof Error ? error.message : "Error desconocido"
-        }`
-      );
-    }
-  };
-
-  const handleEditArea = (id: number) => {
-    router.push(
-      `/areas/editar/${id}${empresaId ? `?empresaId=${empresaId}` : ""}`
-    );
   };
 
   const handleSearch = () => {
@@ -124,9 +219,88 @@ export default function AreasModule() {
     }
   };
 
+  const limpiarFiltros = () => {
+    setFiltros([]);
+    setInputSearchTerm("");
+    setAppliedSearchTerm("");
+    setCurrentPage(1);
+  };
+
+  const handleToggleEstado = async (id: number) => {
+    if (!configuracionIdState) {
+      setError("No se puede cambiar el estado sin un ID de configuración");
+      return;
+    }
+
+    try {
+      await AreaService.toggleEstado(id);
+      // Recargar áreas después de cambiar el estado
+      const response = await AreaService.getAll(configuracionIdState, {
+        nombre: appliedSearchTerm || undefined,
+        page: currentPage,
+        estado: getEstadoFilter(filtros),
+      });
+
+      // Transformar los datos de la API al formato local
+      const areasTransformadas: Area[] = response.data.map((item) => ({
+        id: item.id,
+        nombre: item.nombre,
+        estado: item.estado ? "Activa" : "Inactiva",
+        fechaCreacion: item.fecha_creacion || "N/A",
+        configuracion_id: item.configuracion_id,
+      }));
+
+      setAreas(areasTransformadas);
+      setPaginationInfo({
+        totalPages: response.meta.last_page,
+        totalItems: response.meta.total,
+        links: response.meta.links || [],
+      });
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+      if (error instanceof Error) {
+        if (error.message.includes("Unauthenticated")) {
+          router.push("/login");
+          return;
+        }
+        setError(
+          error.message ||
+            "Error al cambiar el estado del área. Por favor, intente nuevamente."
+        );
+      } else {
+        setError(
+          "Error al cambiar el estado del área. Por favor, intente nuevamente."
+        );
+      }
+    }
+  };
+
+  const handleEditArea = (id: number) => {
+    const params = new URLSearchParams();
+    if (empresaId) params.append("empresaId", empresaId);
+    if (configuracionIdState)
+      params.append("configuracionId", configuracionIdState.toString());
+    if (returnToParam) params.append("returnTo", returnToParam);
+
+    router.push(`/areas/editar/${id}?${params.toString()}`);
+  };
+
   const goToPage = (page: number) => {
-    if (page > 0 && page <= totalPages) {
+    if (page > 0 && page <= paginationInfo.totalPages) {
       setCurrentPage(page);
+
+      // Actualizar la URL con el nuevo número de página
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", page.toString());
+
+      // Mantener los otros parámetros
+      if (empresaId) params.set("empresaId", empresaId);
+      if (configuracionIdState)
+        params.set("configuracionId", configuracionIdState.toString());
+      if (returnToParam) params.set("returnTo", returnToParam);
+
+      // Actualizar la URL sin recargar la página
+      router.push(`/areas?${params.toString()}`, { scroll: false });
     }
   };
 
@@ -159,6 +333,11 @@ export default function AreasModule() {
         <p className="text-sm sm:text-base text-gray-600">
           Administra las áreas con las que trabaja CIDSON.
         </p>
+        {configuracionIdState && (
+          <p className="text-sm text-gray-500">
+            Configuración ID: {configuracionIdState}
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
@@ -166,7 +345,7 @@ export default function AreasModule() {
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
             <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
-              {totalItems}
+              {paginationInfo.totalItems}
             </span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">
               REGISTROS
@@ -264,9 +443,15 @@ export default function AreasModule() {
               </button>
             </div>
 
-            {/* Botón Nueva Área */}
+            {/* Botón de Nueva Área */}
             <Link
-              href={`/areas/crear${empresaId ? `?empresaId=${empresaId}` : ""}`}
+              href={`/areas/crear?${new URLSearchParams({
+                ...(empresaId ? { empresaId } : {}),
+                ...(configuracionIdState
+                  ? { configuracionId: configuracionIdState.toString() }
+                  : {}),
+                ...(returnToParam ? { returnTo: returnToParam } : {}),
+              }).toString()}`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nueva Área
@@ -275,6 +460,7 @@ export default function AreasModule() {
         </div>
       </div>
 
+      {/* Tabla de áreas */}
       <div className="bg-white rounded-xl shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -295,7 +481,7 @@ export default function AreasModule() {
               </tr>
             </thead>
             <tbody>
-              {filteredAreas.map((area) => (
+              {areas.map((area) => (
                 <tr key={area.id} className="border-t border-gray-100">
                   <td className="py-3 px-4 text-gray-800">{area.nombre}</td>
                   <td className="py-3 px-4 text-center text-gray-800">
@@ -316,7 +502,7 @@ export default function AreasModule() {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-center space-x-4">
-                      {/* Botón de editar */}
+                      {/* Botón de editar con SVG inline */}
                       <button
                         onClick={() => handleEditArea(area.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
@@ -336,7 +522,7 @@ export default function AreasModule() {
                         </svg>
                       </button>
 
-                      {/* Botón de activar/desactivar */}
+                      {/* Botón de activar/desactivar con SVG inline */}
                       <button
                         onClick={() => handleToggleEstado(area.id)}
                         className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#2C4874] hover:bg-gray-50"
@@ -380,7 +566,7 @@ export default function AreasModule() {
           </table>
         </div>
 
-        {filteredAreas.length === 0 && (
+        {areas.length === 0 && !error && (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">
               No se encontraron áreas con los filtros aplicados
@@ -395,7 +581,7 @@ export default function AreasModule() {
         )}
 
         {/* Paginación */}
-        {filteredAreas.length > 0 && totalPages > 0 && (
+        {areas.length > 0 && paginationInfo.totalPages > 0 && (
           <div className="flex justify-center py-4 border-t border-gray-100">
             <div className="flex items-center space-x-1">
               <button
@@ -413,43 +599,43 @@ export default function AreasModule() {
                 ‹ Anterior
               </button>
 
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-
-                return (
+              {paginationInfo.links
+                .filter(
+                  (link) =>
+                    !link.label.includes("Previous") &&
+                    !link.label.includes("Next")
+                )
+                .map((link, index) => (
                   <button
-                    key={pageNum}
-                    onClick={() => goToPage(pageNum)}
+                    key={index}
+                    onClick={() => {
+                      if (link.url) {
+                        const url = new URL(link.url);
+                        const page = url.searchParams.get("page");
+                        if (page) {
+                          goToPage(Number.parseInt(page));
+                        }
+                      }
+                    }}
                     className={`px-3 py-1 text-sm rounded-md ${
-                      currentPage === pageNum
-                        ? "bg-[#303e65] text-white"
-                        : "text-gray-500"
+                      link.active ? "bg-[#303e65] text-white" : "text-gray-500"
                     }`}
+                    disabled={!link.url}
                   >
-                    {pageNum}
+                    {link.label}
                   </button>
-                );
-              })}
+                ))}
 
               <button
                 onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === paginationInfo.totalPages}
                 className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
               >
                 Siguiente ›
               </button>
               <button
-                onClick={() => goToPage(totalPages)}
-                disabled={currentPage === totalPages}
+                onClick={() => goToPage(paginationInfo.totalPages)}
+                disabled={currentPage === paginationInfo.totalPages}
                 className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
               >
                 Última »

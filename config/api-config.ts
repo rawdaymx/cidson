@@ -91,7 +91,7 @@ export const API = {
   /**
    * URL base de la API
    */
-  BASE_URL: getBaseUrl(),
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || "https://cidson.int.qaenv.dev",
 
   /**
    * Endpoints de la API

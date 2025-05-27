@@ -13,8 +13,17 @@ export class MaterialService {
     configuracionId: number,
     params?: MaterialSearchParams
   ): Promise<{
-    materiales: Material[];
-    pagination: any;
+    data: Material[];
+    meta: {
+      current_page: number;
+      from: number;
+      last_page: number;
+      links: Array<{ url: string | null; label: string; active: boolean }>;
+      path: string;
+      per_page: number;
+      to: number;
+      total: number;
+    };
   }> {
     try {
       // Obtener API URL y token de autenticación
@@ -61,33 +70,31 @@ export class MaterialService {
       }
 
       const result = await response.json();
+      console.log("API Response:", result);
 
-      // Transformar los datos para mantener compatibilidad con la interfaz existente
-      const materiales = result.data.map((material: any) => ({
-        id: material.id,
-        nombre: material.nombre,
-        estado: material.estado,
-        fecha_creacion: material.fecha_creacion,
-      }));
-
-      const pagination = {
-        currentPage: result.meta.current_page,
-        totalPages: result.meta.last_page,
-        total: result.meta.total,
-        links: result.meta.links,
+      return {
+        data: result.data.map((material: any) => ({
+          id: material.id,
+          nombre: material.nombre,
+          estado: material.estado,
+          fecha_creacion: material.fecha_creacion,
+        })),
+        meta: result.meta,
       };
-
-      return { materiales, pagination };
     } catch (error) {
       console.error("Error al obtener materiales:", error);
-      // En caso de error, devolver datos vacíos
+      // En caso de error, devolver datos vacíos con la estructura correcta
       return {
-        materiales: [],
-        pagination: {
-          currentPage: 1,
-          totalPages: 1,
-          total: 0,
+        data: [],
+        meta: {
+          current_page: 1,
+          from: 0,
+          last_page: 1,
           links: [],
+          path: "",
+          per_page: 10,
+          to: 0,
+          total: 0,
         },
       };
     }
@@ -98,11 +105,35 @@ export class MaterialService {
     material: Omit<Material, "id">
   ): Promise<Material> {
     try {
+      if (!configuracionId) {
+        throw new Error("configuracionId es requerido");
+      }
+
+      if (!material || !material.nombre) {
+        throw new Error("El nombre del material es requerido");
+      }
+
       const apiUrl = getApiUrl();
       const token =
         getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
 
-      const url = `${apiUrl}/api/materiales/${configuracionId}`;
+      const url = `${apiUrl}/api/materiales/store/${configuracionId}`;
+
+      console.log("Creando material:", { url, material });
+
+      // Preparar los datos según el formato esperado por la API
+      const requestData = {
+        nombre: material.nombre.trim(),
+        // Asegurarnos de que estado sea un número (1 para activo, 0 para inactivo)
+        estado:
+          typeof material.estado === "boolean"
+            ? material.estado
+              ? 1
+              : 0
+            : material.estado === "Activo"
+            ? 1
+            : 0,
+      };
 
       const response = await fetch(url, {
         method: "POST",
@@ -111,10 +142,7 @@ export class MaterialService {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          nombre: material.nombre,
-          estado: material.estado === "Activo" ? 1 : 0,
-        }),
+        body: JSON.stringify(requestData),
       });
 
       if (!response.ok) {
@@ -125,6 +153,14 @@ export class MaterialService {
       }
 
       const result = await response.json();
+
+      // Validar que la respuesta tenga la estructura esperada
+      if (!result.data) {
+        throw new Error(
+          "La respuesta del servidor no tiene el formato esperado"
+        );
+      }
+
       return {
         id: result.data.id,
         nombre: result.data.nombre,
@@ -147,7 +183,10 @@ export class MaterialService {
       const token =
         getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
 
-      const url = `${apiUrl}/api/materiales/${configuracionId}/${id}`;
+      // Corregir la URL para que coincida con la documentación
+      const url = `${apiUrl}/api/materiales/update/${id}`;
+
+      console.log("Actualizando material:", { url, material });
 
       const response = await fetch(url, {
         method: "PUT",
@@ -192,10 +231,11 @@ export class MaterialService {
       const token =
         getAuthToken() || "yBPONqL0SH66XBKyfXu2ouwayDl7qaCn05ODKAioebfbd8ad";
 
-      const url = `${apiUrl}/api/materiales/${configuracionId}/${id}/toggle`;
+      // Usar el mismo endpoint que actividades
+      const url = `${apiUrl}/api/materiales/destroy/${id}`;
 
       const response = await fetch(url, {
-        method: "PUT",
+        method: "DELETE",
         headers: {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,

@@ -3,11 +3,11 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import MaterialesModule from "@/components/materiales/materiales-module";
+import ZonasModule from "@/components/zonas/zonas-module";
 import { useEffect, useState } from "react";
 import { getAuthToken } from "@/config/api-config";
 
-export default function MaterialesPage() {
+export default function ZonasPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -15,20 +15,12 @@ export default function MaterialesPage() {
   const empresaId = searchParams.get("empresaId");
   const configuracionId = searchParams.get("configuracionId");
 
-  console.log("Parámetros URL:", {
-    empresaId,
-    configuracionId,
-    allParams: Object.fromEntries(searchParams.entries()),
-  });
-
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkParams = async () => {
       try {
-        console.log("Verificando parámetros:", { empresaId, configuracionId });
-
         // Verificar que tengamos los parámetros necesarios
         if (!empresaId) {
           console.error("Falta empresaId");
@@ -60,7 +52,6 @@ export default function MaterialesPage() {
           return;
         }
 
-        console.log("Verificación exitosa, procediendo a cargar el módulo");
         setIsLoading(false);
         setError(null);
       } catch (error) {
@@ -72,9 +63,6 @@ export default function MaterialesPage() {
 
     checkParams();
   }, [router, empresaId, configuracionId]);
-
-  // URL de regreso a los catálogos de la empresa
-  const backUrl = empresaId ? `/empresas/catalogos/${empresaId}` : "/empresas";
 
   if (error) {
     return (
@@ -102,9 +90,9 @@ export default function MaterialesPage() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <MaterialesModule
-        empresaId={empresaId || ""}
-        configuracionId={configuracionId || ""}
+      <ZonasModule
+        empresaId={empresaId || undefined}
+        configuracionId={configuracionId || undefined}
       />
     </div>
   );

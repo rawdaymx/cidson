@@ -1,67 +1,86 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
-import { MotivoService } from "@/services/motivo-service";
-import type { Motivo } from "@/types/motivo";
+import { ZonaService } from "@/services/zona-service";
 
-export default function EditarMotivoPage() {
+export default function EditarZonaPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
-  const id = Number(params.id);
-  const configuracionId = searchParams.get("configuracionId");
-  const nombre = searchParams.get("nombre");
-  const estado = searchParams.get("estado");
-  const fecha_creacion = searchParams.get("fecha_creacion");
 
+  // Asegurarse de que el ID sea un número
+  const id =
+    typeof params.id === "string" ? parseInt(params.id) : Number(params.id);
+
+  // Obtener los parámetros de la URL actual para mantenerlos en la redirección
+  const empresaId = searchParams.get("empresaId");
+  const configuracionId = searchParams.get("configuracionId");
+  const returnTo = searchParams.get("returnTo");
+
+  // Estado del formulario
   const [formData, setFormData] = useState({
-    nombre: nombre || "",
+    nombre: "",
+    id: id,
+    estado: true,
+    configuracion_id: configuracionId ? parseInt(configuracionId) : undefined,
   });
+
+  // Estado de errores y carga
   const [errors, setErrors] = useState({
     nombre: "",
-    general: "",
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [motivo, setMotivo] = useState<Motivo | null>(
-    nombre
-      ? {
-          id,
-          nombre,
-          estado: estado === "1",
-          fecha_creacion: fecha_creacion || "",
-          configuracion_id: Number(configuracionId),
-        }
-      : null
-  );
-  const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Cargar datos de la zona
   useEffect(() => {
-    if (!nombre) {
-      setLoadError("No se encontró la información del motivo");
-      setTimeout(() => {
-        if (configuracionId) {
-          router.push(`/motivos?configuracionId=${configuracionId}`);
+    const fetchZona = async () => {
+      try {
+        const zona = await ZonaService.getById(id);
+        if (zona) {
+          setFormData({
+            ...zona,
+            id: id,
+            configuracion_id: configuracionId
+              ? parseInt(configuracionId)
+              : zona.configuracion_id,
+          });
         } else {
-          router.push("/motivos");
+          throw new Error("No se encontró la zona");
         }
-      }, 3000);
-    }
-  }, [nombre, configuracionId, router]);
+      } catch (error) {
+        console.error("Error al cargar la zona:", error);
+        setErrors({
+          nombre: "Error al cargar la información de la zona",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isNaN(id)) {
+      fetchZona();
+    } else {
+      setErrors({
+        nombre: "ID de zona inválido",
+      });
+      setIsLoading(false);
+    }
+  }, [id, configuracionId]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
       [name]: value,
     });
 
-    // Limpiar error al cambiar el valor
     if (errors[name as keyof typeof errors]) {
       setErrors({
         ...errors,
@@ -74,11 +93,10 @@ export default function EditarMotivoPage() {
     let isValid = true;
     const newErrors = {
       nombre: "",
-      general: "",
     };
 
     if (!formData.nombre.trim()) {
-      newErrors.nombre = "El nombre del motivo es requerido";
+      newErrors.nombre = "El nombre de la zona es requerido";
       isValid = false;
     }
 
@@ -95,33 +113,43 @@ export default function EditarMotivoPage() {
 
     try {
       setIsSubmitting(true);
-      setErrors({
-        nombre: "",
-        general: "",
+      const updatedZona = await ZonaService.update(id, {
+        nombre: formData.nombre.trim(),
+        estado: formData.estado,
+        configuracion_id: formData.configuracion_id,
       });
 
-      if (motivo) {
-        // Actualizar solo el nombre según la API
-        await MotivoService.update(id, {
-          nombre: formData.nombre.trim(),
-        });
-      }
-
-      // Redirigir a la lista de motivos con el parámetro de configuración si existe
-      if (configuracionId) {
-        router.push(`/motivos?configuracionId=${configuracionId}`);
+      if (updatedZona) {
+        redirectToZonas();
       } else {
-        router.push("/motivos");
+        throw new Error("No se pudo actualizar la zona");
       }
     } catch (error) {
-      console.error("Error al actualizar el motivo:", error);
-      setErrors({
-        ...errors,
-        general:
-          "Ocurrió un error al actualizar el motivo. Por favor, intente nuevamente.",
-      });
-    } finally {
+      console.error("Error al actualizar la zona:", error);
+      if (error instanceof Error && error.message === "NOMBRE_DUPLICADO") {
+        setErrors({
+          nombre:
+            "El nombre de la zona ya existe. Por favor, utilice otro nombre.",
+        });
+      } else {
+        setErrors({
+          nombre:
+            "Ocurrió un error al actualizar la zona. Por favor, intente nuevamente.",
+        });
+      }
       setIsSubmitting(false);
+    }
+  };
+
+  const redirectToZonas = () => {
+    const params = new URLSearchParams();
+    if (empresaId) params.append("empresaId", empresaId);
+    if (configuracionId) params.append("configuracionId", configuracionId);
+    if (returnTo) {
+      router.push(returnTo);
+    } else {
+      const queryString = params.toString();
+      router.push(`/zonas${queryString ? `?${queryString}` : ""}`);
     }
   };
 
@@ -136,41 +164,11 @@ export default function EditarMotivoPage() {
     );
   }
 
-  if (loadError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#f4f6fb]">
-        <div className="text-center bg-white p-8 rounded-xl shadow-sm max-w-md">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-          <p className="text-gray-600 mb-6">{loadError}</p>
-          <p className="text-gray-500 mb-4">
-            Redirigiendo a la lista de motivos...
-          </p>
-          <Link
-            href={
-              configuracionId
-                ? `/motivos?configuracionId=${configuracionId}`
-                : "/motivos"
-            }
-            className="inline-flex items-center text-[#303e65]"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver a la lista
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-[#f4f6fb] min-h-screen">
       <div className="pl-8 pr-6 py-6 max-w-[1200px]">
         <Link
-          href={
-            configuracionId
-              ? `/motivos?configuracionId=${configuracionId}`
-              : "/motivos"
-          }
+          href={returnTo || "/zonas"}
           className="inline-flex items-center text-[#303e65] mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -181,16 +179,10 @@ export default function EditarMotivoPage() {
           Editar registro
         </h1>
         <p className="text-gray-600 mb-8">
-          Edita el motivo de justificación seleccionado.
+          Modifica la información de la zona.
         </p>
 
         <div className="bg-white rounded-xl p-8 shadow-sm max-w-[800px] mx-auto">
-          {errors.general && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
-              {errors.general}
-            </div>
-          )}
-
           <form onSubmit={handleSubmit}>
             <div className="space-y-6">
               <div>
@@ -198,7 +190,7 @@ export default function EditarMotivoPage() {
                   type="text"
                   id="nombre"
                   name="nombre"
-                  placeholder="Nombre Del Motivo"
+                  placeholder="Nombre De La Zona"
                   value={formData.nombre}
                   onChange={handleChange}
                   className={`w-full h-12 px-4 bg-[#f4f6fb] rounded-md border-0 focus:ring-2 focus:ring-[#303e65] ${

@@ -4,14 +4,15 @@ import type React from "react";
 
 import { useState, useEffect } from "react";
 import { Filter, Plus, Search, AlertCircle, ArrowLeft } from "lucide-react";
-import type { Material, MaterialesResponse } from "@/types/material";
+import type { Material } from "@/types/material";
 import { MaterialService } from "@/services/material-service";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { EmpresaService } from "@/services/empresa-service";
 
 interface MaterialesModuleProps {
-  empresaId: number;
-  configuracionId: number;
+  empresaId?: string;
+  configuracionId?: string;
 }
 
 export default function MaterialesModule({
@@ -19,60 +20,136 @@ export default function MaterialesModule({
   configuracionId,
 }: MaterialesModuleProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pageParam = searchParams.get("page");
+  const returnToParam = searchParams.get("returnTo");
+
   const [filtros, setFiltros] = useState<string[]>([]);
-  const [searchInputValue, setSearchInputValue] = useState(""); // Valor del input
-  const [searchTerm, setSearchTerm] = useState(""); // Término de búsqueda aplicado
+  const [inputSearchTerm, setInputSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(
+    pageParam ? Number.parseInt(pageParam) : 1
+  );
+  const [configuracionIdState, setConfiguracionIdState] = useState<
+    number | null
+  >(configuracionId ? Number(configuracionId) : null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [paginationInfo, setPaginationInfo] = useState<
-    MaterialesResponse["meta"] | null
-  >(null);
+  const [paginationInfo, setPaginationInfo] = useState<{
+    totalPages: number;
+    totalItems: number;
+    links: Array<{ url: string | null; label: string; active: boolean }>;
+  }>({
+    totalPages: 1,
+    totalItems: 0,
+    links: [],
+  });
+
+  // Obtener el configuracion_id de la empresa si no se proporcionó como parámetro
+  useEffect(() => {
+    const fetchEmpresaConfiguracion = async () => {
+      // Si ya tenemos el configuracionId del parámetro, no necesitamos obtenerlo de la empresa
+      if (configuracionId) {
+        console.log("Usando configuracionId del parámetro:", configuracionId);
+        return;
+      }
+
+      if (!empresaId) {
+        setError("No se proporcionó ID de empresa");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        console.log("Obteniendo configuración para empresa ID:", empresaId);
+        const empresa = await EmpresaService.getById(Number(empresaId));
+        console.log("Empresa obtenida:", empresa);
+
+        if (empresa && empresa.configuracion_id) {
+          console.log(
+            "Configuración ID obtenido de la empresa:",
+            empresa.configuracion_id
+          );
+          setConfiguracionIdState(empresa.configuracion_id);
+        } else {
+          console.error(
+            "No se encontró configuracion_id en la empresa:",
+            empresa
+          );
+
+          // Si no hay configuracion_id
+          console.log("Usando configuracion_id por defecto: 1");
+          setConfiguracionIdState(1);
+        }
+      } catch (error) {
+        console.error(
+          "Error al obtener la configuración de la empresa:",
+          error
+        );
+        setError("Error al cargar la configuración de la empresa");
+      }
+    };
+
+    fetchEmpresaConfiguracion();
+  }, [empresaId, configuracionId]);
 
   // Cargar materiales
   useEffect(() => {
     const fetchMateriales = async () => {
+      if (!configuracionIdState) {
+        console.log("No hay configuracionId, no se pueden cargar materiales");
+        return;
+      }
+
       try {
         setIsLoading(true);
         setError(null);
 
         // Preparar filtros para la API
-        const apiFilters: { estado?: number; nombre?: string } = {};
+        const apiFilters: { nombre?: string; estado?: number; page: number } = {
+          page: currentPage,
+        };
 
-        // Filtrar por estado
+        // Aplicar filtro de búsqueda
+        if (appliedSearchTerm) {
+          apiFilters.nombre = appliedSearchTerm;
+        }
+
+        // Aplicar filtros de estado
         if (filtros.includes("1") && !filtros.includes("2")) {
           apiFilters.estado = 1; // Activos
         } else if (!filtros.includes("1") && filtros.includes("2")) {
           apiFilters.estado = 0; // Inactivos
         }
 
-        // Filtrar por término de búsqueda
-        if (searchTerm) {
-          apiFilters.nombre = searchTerm;
-        }
+        console.log("Solicitando materiales con filtros:", apiFilters);
+        const response = await MaterialService.getAll(
+          configuracionIdState,
+          apiFilters
+        );
+        console.log("Respuesta de la API:", response);
 
-        const response = await MaterialService.getAll(configuracionId, {
-          page: currentPage,
-          ...apiFilters,
+        setMateriales(response.data);
+        setPaginationInfo({
+          totalPages: response.meta.last_page,
+          totalItems: response.meta.total,
+          links: response.meta.links,
         });
-
-        setMateriales(response.materiales);
-        setPaginationInfo(response.pagination);
-        setTotalPages(response.pagination.last_page);
-        setTotalItems(response.pagination.total);
       } catch (error) {
         console.error("Error al cargar materiales:", error);
-        if (
-          error instanceof Error &&
-          error.message.includes("Unauthenticated")
-        ) {
-          router.push("/login");
+        if (error instanceof Error) {
+          if (error.message.includes("Unauthenticated")) {
+            router.push("/login");
+            return;
+          }
+          setError(
+            error.message ||
+              "Error al cargar los materiales. Por favor, intente nuevamente."
+          );
         } else {
           setError(
-            "No se pudieron cargar los materiales. Por favor, intente de nuevo más tarde."
+            "Error al cargar los materiales. Por favor, intente nuevamente."
           );
         }
       } finally {
@@ -80,78 +157,183 @@ export default function MaterialesModule({
       }
     };
 
-    fetchMateriales();
-  }, [currentPage, filtros, searchTerm, router, configuracionId]);
-
-  const toggleFiltro = (filtro: string) => {
-    if (filtros.includes(filtro)) {
-      setFiltros(filtros.filter((f) => f !== filtro));
+    if (configuracionIdState) {
+      fetchMateriales();
     } else {
-      setFiltros([...filtros, filtro]);
+      setIsLoading(false);
+    }
+  }, [configuracionIdState, appliedSearchTerm, filtros, currentPage, router]);
+
+  useEffect(() => {
+    console.log("Estado de paginación:", {
+      materiales,
+      paginationInfo,
+      currentPage,
+    });
+  }, [materiales, paginationInfo, currentPage]);
+
+  // Inicializar estados desde los parámetros de URL
+  useEffect(() => {
+    const searchTerm = searchParams.get("search") || "";
+    const filtrosParam = searchParams.get("filtros");
+    const filtrosList = filtrosParam ? filtrosParam.split(",") : [];
+
+    setInputSearchTerm(searchTerm);
+    setAppliedSearchTerm(searchTerm);
+    setFiltros(filtrosList);
+  }, [searchParams]);
+
+  const updateUrlWithFilters = (
+    newSearch?: string,
+    newFiltros?: string[],
+    newPage?: number
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    // Actualizar parámetros de búsqueda
+    if (newSearch) {
+      params.set("search", newSearch);
+    } else {
+      params.delete("search");
     }
 
-    // Reset to page 1 when changing filters
+    // Actualizar filtros
+    if (newFiltros && newFiltros.length > 0) {
+      params.set("filtros", newFiltros.join(","));
+    } else {
+      params.delete("filtros");
+    }
+
+    // Actualizar página
+    if (newPage && newPage > 1) {
+      params.set("page", newPage.toString());
+    } else {
+      params.delete("page");
+    }
+
+    // Mantener parámetros esenciales
+    if (empresaId) params.set("empresaId", empresaId);
+    if (configuracionIdState) {
+      params.set("configuracionId", configuracionIdState.toString());
+    }
+
+    router.push(`/materiales?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSearch = () => {
+    setAppliedSearchTerm(inputSearchTerm);
     setCurrentPage(1);
+    updateUrlWithFilters(inputSearchTerm, filtros, 1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSearch();
+    }
+  };
+
+  const toggleFiltro = (filtro: string) => {
+    const newFiltros = filtros.includes(filtro)
+      ? filtros.filter((f) => f !== filtro)
+      : [...filtros, filtro];
+
+    setFiltros(newFiltros);
+    setCurrentPage(1);
+    updateUrlWithFilters(appliedSearchTerm, newFiltros, 1);
   };
 
   const limpiarFiltros = () => {
     setFiltros([]);
-    setSearchInputValue(""); // Limpiar el input
-    setSearchTerm(""); // Limpiar el término de búsqueda aplicado
+    setInputSearchTerm("");
+    setAppliedSearchTerm("");
     setCurrentPage(1);
+    updateUrlWithFilters("", [], 1);
   };
 
-  // Actualizar el método handleToggleEstado para usar el método correcto
   const handleToggleEstado = async (id: number) => {
+    if (!configuracionIdState) return;
+
     try {
-      setError(null);
+      await MaterialService.toggleEstado(configuracionIdState, id);
 
-      await MaterialService.toggleEstado(configuracionId, id);
-
-      // Recargar los materiales para reflejar el cambio
-      const response = await MaterialService.getAll(configuracionId, {
+      // Recargar materiales después de cambiar el estado
+      const response = await MaterialService.getAll(configuracionIdState, {
+        nombre: appliedSearchTerm || undefined,
         page: currentPage,
+        estado: getEstadoFilter(),
       });
 
-      setMateriales(response.materiales);
-      setPaginationInfo(response.pagination);
-      setTotalPages(response.pagination.last_page);
-      setTotalItems(response.pagination.total);
+      setMateriales(response.data);
+      setPaginationInfo({
+        totalPages: response.meta.last_page,
+        totalItems: response.meta.total,
+        links: response.meta.links,
+      });
     } catch (error) {
       console.error("Error al cambiar estado:", error);
-      if (error instanceof Error && error.message.includes("Unauthenticated")) {
-        router.push("/login");
+      if (error instanceof Error) {
+        if (error.message.includes("Unauthenticated")) {
+          router.push("/login");
+          return;
+        }
+        setError(
+          error.message ||
+            "Error al cambiar el estado del material. Por favor, intente nuevamente."
+        );
       } else {
         setError(
-          "No se pudo cambiar el estado del material. Por favor, intente de nuevo más tarde."
+          "Error al cambiar el estado del material. Por favor, intente nuevamente."
         );
       }
     }
   };
 
-  const handleEditMaterial = (id: number) => {
-    const params = new URLSearchParams();
-    params.append("empresaId", empresaId.toString());
-    params.append("configuracionId", configuracionId.toString());
-    router.push(`/materiales/editar/${id}?${params.toString()}`);
+  const getEstadoFilter = (): number | undefined => {
+    if (filtros.includes("1") && !filtros.includes("2")) {
+      return 1; // Activos
+    } else if (!filtros.includes("1") && filtros.includes("2")) {
+      return 0; // Inactivos
+    }
+    return undefined;
   };
 
   const goToPage = (page: number) => {
-    if (page > 0 && page <= totalPages) {
+    if (page > 0 && page <= paginationInfo.totalPages) {
       setCurrentPage(page);
+      updateUrlWithFilters(appliedSearchTerm, filtros, page);
     }
   };
 
-  // Maneja cambios en el input de búsqueda (solo actualiza el valor del input)
-  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchInputValue(e.target.value);
+  const handleEditMaterial = (id: number) => {
+    const params = new URLSearchParams();
+    if (empresaId) params.append("empresaId", empresaId);
+    if (configuracionIdState) {
+      params.append("configuracionId", configuracionIdState.toString());
+    }
+
+    // Encontrar el material en el array de materiales
+    const material = materiales.find((mat) => mat.id === id);
+    if (material) {
+      // Añadir la información del material a los parámetros
+      params.append("nombre", material.nombre);
+      params.append("estado", material.estado ? "1" : "0");
+      if (material.fecha_creacion) {
+        params.append("fecha_creacion", material.fecha_creacion);
+      }
+    }
+
+    router.push(`/materiales/editar/${id}?${params.toString()}`);
   };
 
-  // Función para aplicar la búsqueda cuando se presiona Enter
-  const handleSubmitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSearchTerm(searchInputValue); // Actualiza el término de búsqueda real
-    setCurrentPage(1); // Reset a la primera página
+  const handleVolver = () => {
+    if (returnToParam) {
+      router.push(returnToParam);
+    } else if (empresaId) {
+      router.push(`/empresas/catalogos/${empresaId}`);
+    } else {
+      router.push("/empresas");
+    }
   };
 
   if (isLoading) {
@@ -169,35 +351,33 @@ export default function MaterialesModule({
     <div className="p-3 sm:p-4 md:p-6 max-w-[1600px] mx-auto">
       {/* Botón Volver */}
       <button
-        onClick={() => router.push(`/empresas/catalogos/${empresaId}`)}
+        onClick={handleVolver}
         className="mb-4 flex items-center text-[#303e65] hover:text-[#1a2540] transition-colors"
       >
         <ArrowLeft className="mr-1 h-4 w-4" />
         <span>Volver</span>
       </button>
 
-      <div className="mb-4 sm:mb-6">
+      <div className="mb-4 sm:mb-6 md:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">
           Materiales
         </h1>
         <p className="text-sm sm:text-base text-gray-600">
           Administra los materiales con los que trabaja CIDSON.
         </p>
+        {configuracionIdState && (
+          <p className="text-sm text-gray-500">
+            Configuración ID: {configuracionIdState}
+          </p>
+        )}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-start">
-          <AlertCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 mb-4">
+      <div className="bg-white rounded-xl shadow-card p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Contador de registros */}
           <div className="flex items-center mb-3 lg:mb-0">
             <span className="text-xl sm:text-2xl font-bold text-[#f5d538] mr-2">
-              {totalItems}
+              {paginationInfo.totalItems}
             </span>
             <span className="text-sm sm:text-base text-gray-600 font-medium">
               REGISTROS
@@ -208,24 +388,24 @@ export default function MaterialesModule({
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
             {/* Primer grupo: Búsqueda y filtros */}
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <form
-                onSubmit={handleSubmitSearch}
-                className="relative w-full sm:w-56"
-              >
+              <div className="relative w-full sm:w-56">
                 <input
                   type="text"
                   placeholder="Buscar material..."
                   className="pl-9 bg-gray-50 border border-gray-200 rounded-md w-full p-2 text-sm"
-                  value={searchInputValue}
-                  onChange={handleSearchInputChange}
+                  value={inputSearchTerm}
+                  onChange={(e) => setInputSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyDown}
                 />
                 <button
-                  type="submit"
-                  className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400"
+                  onClick={handleSearch}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Buscar"
                 >
                   <Search className="h-4 w-4" />
                 </button>
-              </form>
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+              </div>
 
               <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
                 <button
@@ -251,7 +431,11 @@ export default function MaterialesModule({
                 <button
                   className="px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center"
                   onClick={limpiarFiltros}
-                  disabled={filtros.length === 0 && !searchTerm}
+                  disabled={
+                    filtros.length === 0 &&
+                    !inputSearchTerm &&
+                    !appliedSearchTerm
+                  }
                 >
                   <Filter className="mr-1 h-4 w-4" /> Limpiar
                 </button>
@@ -283,7 +467,9 @@ export default function MaterialesModule({
               <button
                 className="flex-1 px-3 py-2 text-sm rounded-md border border-gray-300 flex items-center justify-center"
                 onClick={limpiarFiltros}
-                disabled={filtros.length === 0 && !searchTerm}
+                disabled={
+                  filtros.length === 0 && !inputSearchTerm && !appliedSearchTerm
+                }
               >
                 <Filter className="mr-1 h-4 w-4" /> Limpiar
               </button>
@@ -291,7 +477,13 @@ export default function MaterialesModule({
 
             {/* Botón de Nuevo Material */}
             <Link
-              href="/materiales/nuevo"
+              href={`/materiales/nuevo?${new URLSearchParams({
+                ...(empresaId ? { empresaId } : {}),
+                ...(configuracionIdState
+                  ? { configuracionId: configuracionIdState.toString() }
+                  : {}),
+                ...(returnToParam ? { returnTo: returnToParam } : {}),
+              }).toString()}`}
               className="px-4 py-2 text-sm rounded-md bg-[#303e65] text-white flex items-center justify-center sm:justify-start w-full sm:w-auto sm:ml-auto"
             >
               <Plus className="mr-1 h-4 w-4" /> Nuevo Material
@@ -301,11 +493,11 @@ export default function MaterialesModule({
       </div>
 
       {/* Tabla de materiales */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-[rgb(244,246,251)]">
+              <tr className="bg-[#f4f6fb]">
                 <th className="text-left py-3 px-4 font-medium text-gray-700">
                   Nombre Del Material
                 </th>
@@ -413,7 +605,7 @@ export default function MaterialesModule({
         )}
 
         {/* Paginación */}
-        {paginationInfo && (
+        {materiales.length > 0 && paginationInfo.totalPages > 0 && (
           <div className="flex justify-center py-4 border-t border-gray-100">
             <div className="flex items-center space-x-1">
               <button
@@ -431,32 +623,43 @@ export default function MaterialesModule({
                 ‹ Anterior
               </button>
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`px-3 py-1 text-sm rounded-md ${
-                      page === currentPage
-                        ? "bg-[#303e65] text-white"
-                        : "text-gray-500"
-                    }`}
-                  >
-                    {page}
-                  </button>
+              {paginationInfo.links
+                .filter(
+                  (link) =>
+                    !link.label.includes("Previous") &&
+                    !link.label.includes("Next")
                 )
-              )}
+                .map((link, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (link.url) {
+                        const url = new URL(link.url);
+                        const page = url.searchParams.get("page");
+                        if (page) {
+                          goToPage(Number.parseInt(page));
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1 text-sm rounded-md ${
+                      link.active ? "bg-[#303e65] text-white" : "text-gray-500"
+                    }`}
+                    disabled={!link.url}
+                  >
+                    {link.label}
+                  </button>
+                ))}
 
               <button
                 onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
+                disabled={currentPage === paginationInfo.totalPages}
                 className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
               >
                 Siguiente ›
               </button>
               <button
-                onClick={() => goToPage(totalPages)}
-                disabled={currentPage === totalPages}
+                onClick={() => goToPage(paginationInfo.totalPages)}
+                disabled={currentPage === paginationInfo.totalPages}
                 className="px-3 py-1 text-gray-500 text-sm disabled:opacity-50"
               >
                 Última »
