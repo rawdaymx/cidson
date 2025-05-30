@@ -1,16 +1,18 @@
-import { API } from "@/config/api-config"
-import { setCookie, deleteCookie, getCookie } from "cookies-next"
+import { API } from "@/config/api-config";
+import { setCookie, deleteCookie, getCookie } from "cookies-next";
+import { removeUserPermissions } from "@/config/permissions-config";
 
 // Interfaces para tipar las respuestas y solicitudes
 interface LoginRequest {
-  email: string
-  password: string
+  email: string;
+  password: string;
 }
 
 interface AuthResponse {
-  token: string
-  success: boolean
-  error?: string
+  token: string;
+  success: boolean;
+  error?: string;
+  permissions?: { name: string }[];
 }
 
 export class AuthService {
@@ -23,10 +25,10 @@ export class AuthService {
   static async login(email: string, password: string): Promise<AuthResponse> {
     try {
       // Construimos la URL completa para el login
-      const url = `${API.BASE_URL}${API.ENDPOINTS.LOGIN}`
+      const url = `${API.BASE_URL}${API.ENDPOINTS.LOGIN}`;
 
       // Log para depuración
-      console.log(`Intentando login en: ${url}`)
+      console.log(`Intentando login en: ${url}`);
 
       const options = {
         method: "POST",
@@ -36,13 +38,15 @@ export class AuthService {
           Authorization: "Bearer 123", // Token inicial requerido por la API
         },
         body: JSON.stringify({ email, password }),
-      }
+      };
 
       // Realizamos la solicitud directamente con la URL y las opciones
-      const response = await fetch(url, options)
+      const response = await fetch(url, options);
 
       // Log para depuración
-      console.log(`Respuesta del servidor: ${response.status} ${response.statusText}`)
+      console.log(
+        `Respuesta del servidor: ${response.status} ${response.statusText}`
+      );
 
       if (!response.ok) {
         // Manejar diferentes códigos de estado con mensajes en español
@@ -50,57 +54,65 @@ export class AuthService {
           return {
             token: "",
             success: false,
-            error: "Credenciales incorrectas. Por favor, verifica tu correo y contraseña.",
-          }
+            error:
+              "Credenciales incorrectas. Por favor, verifica tu correo y contraseña.",
+          };
         } else if (response.status === 429) {
           return {
             token: "",
             success: false,
-            error: "Demasiados intentos fallidos. Por favor, intenta de nuevo más tarde.",
-          }
+            error:
+              "Demasiados intentos fallidos. Por favor, intenta de nuevo más tarde.",
+          };
         } else if (response.status === 404) {
           return {
             token: "",
             success: false,
             error: `No se pudo conectar con el servidor de autenticación (${url}). Por favor, contacta al administrador.`,
-          }
+          };
         } else {
           return {
             token: "",
             success: false,
             error: `Error al iniciar sesión (${response.status}). Por favor, intenta de nuevo más tarde.`,
-          }
+          };
         }
       }
 
-      // La API devuelve directamente el token como string
-      const token = await response.text()
+      // La API ahora devuelve un objeto con token y permisos
+      const data = await response.json();
 
       // Guardar el token en una cookie para usarlo en futuras peticiones
       // La cookie estará disponible tanto en el cliente como en el servidor
-      setCookie("auth_token", token, {
+      setCookie("auth_token", data.token, {
         maxAge: 30 * 24 * 60 * 60, // 30 días
         path: "/",
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
-      })
+      });
 
-      // También lo guardamos en localStorage para acceso fácil desde el cliente
+      // También guardamos el token y los permisos en localStorage para acceso fácil desde el cliente
       if (typeof window !== "undefined") {
-        localStorage.setItem("auth_token", token)
+        localStorage.setItem("auth_token", data.token);
+        localStorage.setItem(
+          "user_permissions",
+          JSON.stringify(data.permissions || [])
+        );
       }
 
       return {
-        token,
+        token: data.token,
         success: true,
-      }
+        permissions: data.permissions,
+      };
     } catch (error) {
-      console.error("Error en el servicio de autenticación:", error)
+      console.error("Error en el servicio de autenticación:", error);
       return {
         token: "",
         success: false,
-        error: "Error de conexión con el servidor. Por favor, verifica tu conexión a internet.",
-      }
+        error:
+          "Error de conexión con el servidor. Por favor, verifica tu conexión a internet.",
+      };
     }
   }
 
@@ -109,8 +121,8 @@ export class AuthService {
    * @returns true si hay un token almacenado
    */
   static isAuthenticated(): boolean {
-    if (typeof window === "undefined") return false
-    return !!this.getToken()
+    if (typeof window === "undefined") return false;
+    return !!this.getToken();
   }
 
   /**
@@ -120,26 +132,29 @@ export class AuthService {
   static getToken(): string {
     // Intentar obtener token de localStorage primero
     if (typeof window !== "undefined") {
-      const localToken = localStorage.getItem("auth_token")
-      if (localToken) return localToken
+      const localToken = localStorage.getItem("auth_token");
+      if (localToken) return localToken;
     }
 
     // Si no hay token en localStorage, intentar obtenerlo de cookies
-    const cookieToken = getCookie("auth_token")
-    return cookieToken?.toString() || ""
+    const cookieToken = getCookie("auth_token");
+    return cookieToken?.toString() || "";
   }
 
   /**
    * Cierra la sesión del usuario
    */
   static logout(): void {
-    if (typeof window === "undefined") return
+    if (typeof window === "undefined") return;
 
     // Eliminar el token de localStorage
-    localStorage.removeItem("auth_token")
+    localStorage.removeItem("auth_token");
+
+    // Eliminar los permisos
+    removeUserPermissions();
 
     // Eliminar la cookie
-    deleteCookie("auth_token", { path: "/" })
+    deleteCookie("auth_token", { path: "/" });
 
     // No hacemos la redirección aquí para mantener la separación de responsabilidades
     // La redirección se maneja en el componente que llama a este método
@@ -152,7 +167,7 @@ export class AuthService {
  */
 export function getAuthToken(): string | null {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("auth_token")
+    return localStorage.getItem("auth_token");
   }
-  return null
+  return null;
 }
