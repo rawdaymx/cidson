@@ -1,0 +1,292 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "dynamicRoutes": [
+    {
+      "page": "/actividades/editar/[id]",
+      "regex": "^/actividades/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/actividades/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/areas/editar/[id]",
+      "regex": "^/areas/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/areas/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/captura-checklist/detalle/[id]",
+      "regex": "^/captura\\-checklist/detalle/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/captura\\-checklist/detalle/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/checklist/detalle/[id]",
+      "regex": "^/checklist/detalle/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/checklist/detalle/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/checklist/editar/[id]",
+      "regex": "^/checklist/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/checklist/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/empresas/catalogos/[id]",
+      "regex": "^/empresas/catalogos/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/empresas/catalogos/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/empresas/detalle/[id]",
+      "regex": "^/empresas/detalle/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/empresas/detalle/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/empresas/editar/[id]",
+      "regex": "^/empresas/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/empresas/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/materiales/editar/[id]",
+      "regex": "^/materiales/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/materiales/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/metodos/editar/[id]",
+      "regex": "^/metodos/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/metodos/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/motivos/editar/[id]",
+      "regex": "^/motivos/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/motivos/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/reset-password/[token]",
+      "regex": "^/reset\\-password/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtoken": "nxtPtoken"
+      },
+      "namedRegex": "^/reset\\-password/(?<nxtPtoken>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/zonas/editar/[id]",
+      "regex": "^/zonas/editar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/zonas/editar/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/actividades",
+      "regex": "^/actividades(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/actividades(?:/)?$"
+    },
+    {
+      "page": "/actividades/nueva",
+      "regex": "^/actividades/nueva(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/actividades/nueva(?:/)?$"
+    },
+    {
+      "page": "/areas",
+      "regex": "^/areas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/areas(?:/)?$"
+    },
+    {
+      "page": "/areas/crear",
+      "regex": "^/areas/crear(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/areas/crear(?:/)?$"
+    },
+    {
+      "page": "/areas/nueva",
+      "regex": "^/areas/nueva(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/areas/nueva(?:/)?$"
+    },
+    {
+      "page": "/captura-checklist",
+      "regex": "^/captura\\-checklist(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/captura\\-checklist(?:/)?$"
+    },
+    {
+      "page": "/captura-checklist/nuevo",
+      "regex": "^/captura\\-checklist/nuevo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/captura\\-checklist/nuevo(?:/)?$"
+    },
+    {
+      "page": "/checklist",
+      "regex": "^/checklist(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/checklist(?:/)?$"
+    },
+    {
+      "page": "/checklist/nuevo",
+      "regex": "^/checklist/nuevo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/checklist/nuevo(?:/)?$"
+    },
+    {
+      "page": "/empresas",
+      "regex": "^/empresas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/empresas(?:/)?$"
+    },
+    {
+      "page": "/empresas/nueva",
+      "regex": "^/empresas/nueva(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/empresas/nueva(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/materiales",
+      "regex": "^/materiales(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/materiales(?:/)?$"
+    },
+    {
+      "page": "/materiales/nuevo",
+      "regex": "^/materiales/nuevo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/materiales/nuevo(?:/)?$"
+    },
+    {
+      "page": "/metodos",
+      "regex": "^/metodos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/metodos(?:/)?$"
+    },
+    {
+      "page": "/metodos/nuevo",
+      "regex": "^/metodos/nuevo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/metodos/nuevo(?:/)?$"
+    },
+    {
+      "page": "/motivos",
+      "regex": "^/motivos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/motivos(?:/)?$"
+    },
+    {
+      "page": "/motivos/nuevo",
+      "regex": "^/motivos/nuevo(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/motivos/nuevo(?:/)?$"
+    },
+    {
+      "page": "/recuperar-contrasena",
+      "regex": "^/recuperar\\-contrasena(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/recuperar\\-contrasena(?:/)?$"
+    },
+    {
+      "page": "/reset-password",
+      "regex": "^/reset\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reset\\-password(?:/)?$"
+    },
+    {
+      "page": "/sistema",
+      "regex": "^/sistema(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sistema(?:/)?$"
+    },
+    {
+      "page": "/zonas",
+      "regex": "^/zonas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/zonas(?:/)?$"
+    },
+    {
+      "page": "/zonas/nueva",
+      "regex": "^/zonas/nueva(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/zonas/nueva(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "RSC",
+    "varyHeader": "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch",
+    "prefetchHeader": "Next-Router-Prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "Next-Router-Segment-Prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  },
+  "rewrites": []
+}

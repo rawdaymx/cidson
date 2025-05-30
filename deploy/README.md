@@ -56,7 +56,7 @@ Asegúrese de configurar las siguientes variables en su archivo `.env`:
 
    ```bash
    git clone <URL_DEL_REPOSITORIO>
-   cd deploy
+   cd <NOMBRE_DE_LA_CARPETA>
    ```
 
 2. Construir la imagen Docker:
